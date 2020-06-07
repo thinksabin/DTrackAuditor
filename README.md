@@ -7,13 +7,12 @@ This script helps to use DependencyTrack in the CI pipeline, failing the build b
 
 The Golang based similar tool already exists here and is easy to use: https://github.com/ozonru/dtrack-audit
 
----
-#### Setup
 
-Install all the dependencies libraries required. 
-Requirement = Python 3 or above  
+#### Setup
+Install all the dependencies libraries required.  
+Requirement = Python 3 or above 
 Tested on Python 3.8 
----
+
 
 #### Features  
 
@@ -24,7 +23,6 @@ Tested on Python 3.8
 eg. if number of critical is higher or equal to 10. Default is critical with 3 counts
 5. Return 0 or 1 exit status for Auto mode.
 
----
 
 #### Usage
 
