@@ -10,7 +10,7 @@ The Golang based similar tool already exists here and is easy to use: https://gi
 
 #### Setup
 Install all the dependencies libraries required.  
-Requirement = Python 3 or above 
+Requirement = Python 3 or above  
 Tested on Python 3.8 
 
 
