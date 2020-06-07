@@ -1,5 +1,5 @@
 # DTrackAuditor
-DTrackAuditor is the python script to facilitate usage of DependencyTrack in the CI.
+DTrackAuditor is the python script to facilitate usage of [DependencyTrack](https://dependencytrack.org/) in the CI.
 
 Specially made for the non Jenkins CI environment. DependencyTrack already has Jenkins plugin to be used https://plugins.jenkins.io/dependency-track/
 
