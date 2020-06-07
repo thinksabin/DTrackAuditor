@@ -8,15 +8,15 @@ This script helps to use DependencyTrack in the CI pipeline, failing the build b
 The Golang based similar tool already exists here and is easy to use: https://github.com/ozonru/dtrack-audit
 
 ---
-Setup
---  
+#### Setup
+
 Install all the dependencies libraries required. 
 Requirement = Python 3 or above  
 Tested on Python 3.8 
 ---
 
-Features  
---
+#### Features  
+
 1. Auto mode for project creation given project name and version. Creates new project with version if already not found.
 2. Auto mode useful for CI pipeline.
 3. Optional filename path. Default is bom.xml
@@ -26,8 +26,7 @@ eg. if number of critical is higher or equal to 10. Default is critical with 3 c
 
 ---
 
-Usage
---
+#### Usage
 
 `python dtrackauditor.py -u 'http://mydtrack.local:8080' -k 'mydtrackapikey' -p myweb -v 1.0.0 -f myweb/target/bom.xml -a`
 
@@ -47,8 +46,7 @@ For more please use --help
 
 ---
 
-ToDo
---
+#### ToDo
 1. List vulnerability results based on filters.
 2. Generate reports per projects
 3. Pip and docker base
