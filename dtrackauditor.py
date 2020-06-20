@@ -144,6 +144,7 @@ def get_bom_analysis_status(host, key, bom_token):
     headers = {"content-type": "application/json", "X-API-Key": key}
     r = requests.get(url, headers=headers)
     response_dict = json.loads(r.text)
+    return response_dict
 
 def poll_response(response):
     status = json.loads(response.text).get('processing')
@@ -187,10 +188,10 @@ def parse_cmd_args():
                         help=' * version of project in dependencytrack. eg. 1.0.0. *')
     parser.add_argument('-f', '--filename', type=str,
                         help='file path of sbom. eg. target/bom.xml, mybom.xml')
-    parser.add_argument('-t', '--trigger', type=int,
+    parser.add_argument('-r', '--return', type=int,
                         help=' value 0 or 1 for Pass/ Fail. Use in Auto mode when job doesnt have to be '
                              'failed when number of issues detected more than count')
-    parser.add_argument('-r', '--risk', type=str,
+    parser.add_argument('-s', '--severity', type=str,
                         help='risk types to check. Use with Auto mode. eg: critical, high, medium, low, unassigned.'
                              'Default is critical')
     parser.add_argument('-c', '--count', type=str,
@@ -205,7 +206,7 @@ def parse_cmd_args():
         if DTRACK_SERVER != None:
             args.url = DTRACK_SERVER
         else:
-            print('dtrack server required. set env $DTRACK_SERVER or use --apikey')
+            print('dtrack server required. set env $DTRACK_SERVER or use --url')
             exit(1)
 
     if args.apikey is None:
@@ -249,5 +250,5 @@ if __name__ == '__main__':
             bom_token = read_upload_bom(dt_server, dt_api_key, project_name, version, filename)
             print(project_uuid)
     else:
-        print('project name and version are required. Check help.')
+        print('Project Name and Version are required. Check help --help.')
         exit(1)
