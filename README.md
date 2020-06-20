@@ -34,7 +34,7 @@ If environment variable for DTRACK_SERVER and DTRACK_API_KEY are present then th
 `python dtrackauditor.py  -p myweb -v 1.0.0 -a`
 
 Auto mode for CI/ CD. Use risk, count and trigger flags to change defaults.
-`python dtrackauditor.py -u http://mydtrack.local:8080 -k mydtrackapikey -p hello -v 8.0.0 -a -r critical -c 20 -t 0`
+`python dtrackauditor.py -u http://mydtrack.local:8080 -k mydtrackapikey -p hello -v 8.0.0 -a -s critical -c 20 -r 0`
 
 
 For more please use --help
