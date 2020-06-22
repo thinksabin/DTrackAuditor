@@ -43,8 +43,3 @@ For more please use --help
 
 
 ---
-
-#### ToDo
-1. List vulnerability results based on filters.
-2. Generate reports per projects
-3. Pip and docker base
