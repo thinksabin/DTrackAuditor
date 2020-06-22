@@ -12,7 +12,7 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-data.
-NAME = 'dtrackauditor'
+NAME = 'dtrack-auditor'
 DESCRIPTION = 'Python client for OWASP DependencyTrack usage in CI CD. Developed and Tested on OWASP DependencyTrack ' \
               'version 3.8.0'
 URL = 'https://github.com/thinksabin/DTrackAuditor'
@@ -106,9 +106,9 @@ setup(
     # If your package is a single module, use this instead of 'packages':
     # py_modules=['mypackage'],
 
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
+    entry_points={
+        'console_scripts': ['dtrackauditor=dtrackauditor.dtrackauditor:main'],
+    },
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
@@ -119,8 +119,7 @@ setup(
         'License :: OSI Approved :: Apache License 2.0',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: Implementation :: PyPy'
+        'Programming Language :: Python :: 3.8'
     ],
     # $ setup.py publish support.
     cmdclass={
