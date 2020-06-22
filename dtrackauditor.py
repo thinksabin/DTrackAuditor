@@ -188,7 +188,7 @@ def parse_cmd_args():
                         help=' * version of project in dependencytrack. eg. 1.0.0. *')
     parser.add_argument('-f', '--filename', type=str,
                         help='file path of sbom. eg. target/bom.xml, mybom.xml')
-    parser.add_argument('-r', '--return', type=int,
+    parser.add_argument('-r', '--returncode', type=int,
                         help=' value 0 or 1 for Pass/ Fail. Use in Auto mode when job doesnt have to be '
                              'failed when number of issues detected more than count')
     parser.add_argument('-s', '--severity', type=str,
@@ -216,10 +216,10 @@ def parse_cmd_args():
             print('api key required. set env $DTRACK_API_KEY or use --apikey')
             exit(1)
 
-    if args.risk is None:
-        args.risk = DEFAULT_RISK
-    if args.trigger is None:
-        args.trigger = DEFAULT_TRIGGER
+    if args.severity is None:
+        args.severity = DEFAULT_RISK
+    if args.returncode is None:
+        args.returncode = DEFAULT_TRIGGER
     if args.count is None:
         args.count = DEFAULT_SCORE
     if args.version is None:
@@ -232,9 +232,9 @@ def parse_cmd_args():
 if __name__ == '__main__':
 
     args = parse_cmd_args()
-    risk = args.risk.strip().upper()
+    severity = args.severity.strip().upper()
     count = args.count
-    trigger = args.trigger
+    returncode = args.returncode
     dt_server = args.url.strip()
     dt_api_key = args.apikey.strip()
     filename = args.filename.strip()
@@ -244,7 +244,7 @@ if __name__ == '__main__':
         version = args.version.strip()
 
         if args.auto:
-            auto_project_create_upload_bom(dt_server, dt_api_key, project_name, version, risk, count, trigger, filename)
+            auto_project_create_upload_bom(dt_server, dt_api_key, project_name, version, severity, count, returncode, filename)
         else:
             project_uuid = project_lookup_create(dt_server, dt_api_key,project_name, version)
             bom_token = read_upload_bom(dt_server, dt_api_key, project_name, version, filename)
