@@ -206,14 +206,14 @@ def parse_cmd_args():
         if DTRACK_SERVER != None:
             args.url = DTRACK_SERVER
         else:
-            print('dtrack server required. set env $DTRACK_SERVER or use --url')
+            print('DependencyTrack server url is required. set env $DTRACK_SERVER or use --url. Check help --help')
             exit(1)
 
     if args.apikey is None:
         if DTRACK_API_KEY != None:
             args.apikey = DTRACK_API_KEY
         else:
-            print('api key required. set env $DTRACK_API_KEY or use --apikey')
+            print('DependencyTrack api key is required. set env $DTRACK_API_KEY or use --apikey. Check help --help')
             exit(1)
 
     if args.severity is None:
