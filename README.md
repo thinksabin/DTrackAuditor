@@ -46,3 +46,6 @@ For more please use --help
 #### Docker usage
 
 docker run --rm  -v $PWD:/tmp thinksabin/dtrackauditor --url http://192.168.43.221:8081 --apikey XYQAQHW1kECL98LTaxUDjh -f /tmp/bom.xml -p myprojectname -v 2.0.0 -a
+
+#### Pip usage
+pip install dtrack-auditor
