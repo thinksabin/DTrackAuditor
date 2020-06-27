@@ -20,7 +20,7 @@ API_BOM_TOKEN = '/api/v1/bom/token'
 DEFAULT_RISK = 'critical'
 DEFAULT_SCORE = 3
 DEFAULT_VERSION = '1.0.0'
-DEFAULT_FILENAME = 'bom.xml'
+DEFAULT_FILENAME = '../bom.xml'
 
 DEFAULT_TRIGGER = 1
 
@@ -229,7 +229,7 @@ def parse_cmd_args():
 
     return args
 
-if __name__ == '__main__':
+def main():
 
     args = parse_cmd_args()
     severity = args.severity.strip().upper()
@@ -246,9 +246,15 @@ if __name__ == '__main__':
         if args.auto:
             auto_project_create_upload_bom(dt_server, dt_api_key, project_name, version, severity, count, returncode, filename)
         else:
-            project_uuid = project_lookup_create(dt_server, dt_api_key,project_name, version)
+            project_uuid = project_lookup_create(dt_server, dt_api_key, project_name, version)
             bom_token = read_upload_bom(dt_server, dt_api_key, project_name, version, filename)
             print(project_uuid)
     else:
         print('Project Name and Version are required. Check help --help.')
         exit(1)
+
+
+if __name__ == '__main__':
+   main()
+
+
