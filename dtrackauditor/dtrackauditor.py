@@ -50,7 +50,7 @@ def get_project_with_version_id(host, key, project_name, version):
 def read_upload_bom(host, key, project_name, version, filename):
     print(project_name, version)
 
-    with open(filename) as bom_file:
+    with open(os.path.join(os.path.dirname(__file__),filename)) as bom_file:
         _xml_data =  bom_file.read()
     #print(_xml_data)
     data = bytes(_xml_data, encoding='utf-8')
