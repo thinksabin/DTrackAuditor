@@ -5,6 +5,7 @@ import requests
 import json
 import os
 import polling
+import sys
 from base64 import b64encode
 
 
@@ -170,10 +171,10 @@ def auto_project_create_upload_bom(host, key, project_name, version, risk, count
 
     if severity_scores.get(risk) >= int(count) and trigger == 1:
         print('Build failed to critical counts: {} >= {}'.format(risk, str(count)))
-        exit(1)
+        sys.exit(1)
     else:
         print('build successful', severity_scores.get(risk))
-        exit(0)
+        sys.exit(0)
 
 def parse_cmd_args():
     parser = argparse.ArgumentParser(description='dtrack script for manual or in CI use',
@@ -207,14 +208,14 @@ def parse_cmd_args():
             args.url = DTRACK_SERVER
         else:
             print('DependencyTrack server url is required. set env $DTRACK_SERVER or use --url. Check help --help')
-            exit(1)
+            sys.exit(1)
 
     if args.apikey is None:
         if DTRACK_API_KEY != None:
             args.apikey = DTRACK_API_KEY
         else:
             print('DependencyTrack api key is required. set env $DTRACK_API_KEY or use --apikey. Check help --help')
-            exit(1)
+            sys.exit(1)
 
     if args.severity is None:
         args.severity = DEFAULT_RISK
@@ -251,7 +252,7 @@ def main():
             print(project_uuid)
     else:
         print('Project Name and Version are required. Check help --help.')
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
