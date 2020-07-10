@@ -18,7 +18,7 @@ DESCRIPTION = 'Python client for OWASP DependencyTrack usage in CI CD. Developed
 URL = 'https://github.com/thinksabin/DTrackAuditor'
 AUTHOR = 'thinksabin'
 REQUIRES_PYTHON = '>=3.8.0'
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
