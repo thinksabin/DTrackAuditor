@@ -34,7 +34,7 @@ If environment variable for DTRACK_SERVER and DTRACK_API_KEY are present then th
 `python dtrackauditor.py  -p myweb -v 1.0.0 -a`
 
 Auto mode for CI/ CD. Use risk, count and trigger flags to change defaults.
-`python dtrackauditor.py -u http://mydtrack.local:8080 -k mydtrackapikey -p hello -v 8.0.0 -a -s critical -c 20 -r 0`
+`python dtrackauditor.py -u http://mydtrack.local:8080 -k mydtrackapikey -p hello -v 8.0.0 -a -s critical -c 20 -r 0 -l true`
 
 
 For more please use --help
@@ -49,3 +49,7 @@ docker run --rm  -v $PWD:/tmp thinksabin/dtrackauditor --url http://192.168.43.2
 
 #### Pip usage
 pip install dtrack-auditor
+
+### Setup usage
+Clone the repo from the master branch for the latest test code commits.
+python3 setup.py
