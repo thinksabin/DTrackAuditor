@@ -22,6 +22,7 @@ DEFAULT_RISK = 'critical'
 DEFAULT_SCORE = 3
 DEFAULT_VERSION = '1.0.0'
 DEFAULT_FILENAME = '../bom.xml'
+DEFAULT_SHOWDETAILS = 'FALSE'
 
 DEFAULT_TRIGGER = 1
 
@@ -49,7 +50,6 @@ def get_project_with_version_id(host, key, project_name, version):
 
 # read Bom.xml file convert into base64 for upload
 def read_upload_bom(host, key, project_name, version, filename):
-    print(project_name, version)
 
     with open(os.path.join(os.path.dirname(__file__),filename)) as bom_file:
         _xml_data =  bom_file.read()
@@ -70,7 +70,6 @@ def read_upload_bom(host, key, project_name, version, filename):
     headers = {"content-type": "application/json", "X-API-Key": key}
     r = requests.put(url, data=json.dumps(payload), headers=headers)
     response_dict = json.loads(r.text)
-    print(response_dict)
     return response_dict.get('token')
 
 
@@ -101,8 +100,46 @@ def project_lookup_create(host, key, project_name, version):
         #print(project_id)
         return project_id
 
+def get_project_findings(host, key , project_id):
+    url = host + API_PROJECT_FINDING + '/{}'.format(project_id)
+    headers = {"content-type": "application/json", "X-API-Key": key}
+    r = requests.get(url, headers=headers)
+    response_dict = json.loads(r.text)
+    return response_dict
 
-def get_project_finding_severity(host, key , project_id):
+
+def get_project_findings_details(project_findings, show_details, risk):
+    response_dict = project_findings
+    issues_details_filtered_list = []
+    issues_details_list = []
+
+    if show_details == 'TRUE':
+        for component in response_dict:
+            if component.get('vulnerability').get('severity') == risk:
+                cveid = component.get('vulnerability').get('vulnId')
+                purl = component.get('component').get('purl')
+                severity_level = component.get('vulnerability').get('severity')
+                issue_details = {'cveid': cveid,
+                                      'purl': purl,
+                                      'severity_level':severity_level}
+                issues_details_filtered_list.append(issue_details)
+        return issues_details_filtered_list
+
+    if show_details == 'ALL':
+        for component in response_dict:
+            cveid = component.get('vulnerability').get('vulnId')
+            purl = component.get('component').get('purl')
+            severity_level = component.get('vulnerability').get('severity')
+            issue_details = {'cveid': cveid,
+                             'purl': purl,
+                             'severity_level': severity_level}
+
+            issues_details_list.append(issue_details)
+        return issues_details_list
+
+
+
+def get_project_finding_severity(project_findings):
 
     critical_count = 0
     high_count = 0
@@ -110,10 +147,7 @@ def get_project_finding_severity(host, key , project_id):
     unassigned_count = 0
     low_count  =0
 
-    url = host + API_PROJECT_FINDING + '/{}'.format(project_id)
-    headers = {"content-type": "application/json", "X-API-Key": key}
-    r = requests.get(url, headers=headers)
-    response_dict = json.loads(r.text)
+    response_dict = project_findings
 
     for component in response_dict:
 
@@ -135,7 +169,6 @@ def get_project_finding_severity(host, key , project_id):
                       'LOW': low_count,
                       'UNASSIGNED': unassigned_count
                       }
-    print(severity_count)
     return severity_count
 
 
@@ -160,14 +193,20 @@ def poll_bom_token_being_processed(host, key, bom_token):
                           check_success=poll_response)
     return json.loads(result.text).get('processing')
 
-def auto_project_create_upload_bom(host, key, project_name, version, risk, count, trigger, filename):
+def auto_project_create_upload_bom(host, key, project_name, version, risk, count, trigger, filename, show_details):
 
     print('Auto mode ON')
-
+    print('Provide project name and version: ', project_name, version)
     project_uuid = project_lookup_create(host, key, project_name, version)
     bom_token = read_upload_bom(host, key, project_name, version, filename)
     poll_bom_token_being_processed(host, key, bom_token)
-    severity_scores = get_project_finding_severity(host, key, project_uuid)
+    project_findings = get_project_findings(host, key, project_uuid)
+    severity_scores = get_project_finding_severity(project_findings)
+    vul_details = get_project_findings_details(project_findings,show_details, risk)
+    print(severity_scores)
+    if show_details == 'TRUE' or show_details == 'ALL':
+        for items in vul_details:
+            print(items)
 
     if severity_scores.get(risk) >= int(count) and trigger == 1:
         print('Build failed to critical counts: {} >= {}'.format(risk, str(count)))
@@ -200,7 +239,10 @@ def parse_cmd_args():
     parser.add_argument('-a', '--auto', action="store_true",
                         help='auto creates project with version if not found in the dtrack server.'
                              ' sync and fail the job if any mentioned issues are found to be higher than default or set'
-                             'count value.')
+                             'count value.'),
+    parser.add_argument('-l', '--showdetails', type=str,
+                        help='displays vulnerabilities details in the stdout based on severity selected. Use with Auto mode.'
+                             ' eg values: true or false or all. Default is False.')
     args = parser.parse_args()
 
     if args.url is None:
@@ -227,7 +269,8 @@ def parse_cmd_args():
         args.version = DEFAULT_VERSION
     if args.filename is None:
         args.filename = DEFAULT_FILENAME
-
+    if args.showdetails is None:
+        args.showdetails = DEFAULT_SHOWDETAILS
     return args
 
 def main():
@@ -239,13 +282,31 @@ def main():
     dt_server = args.url.strip()
     dt_api_key = args.apikey.strip()
     filename = args.filename.strip()
+    show_details = args.showdetails.strip().upper()
+    accepted_options_severity = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNASSIGNED']
+    accepted_options_showdetails = ['TRUE', 'FALSE', 'ALL']
+
+    if show_details in accepted_options_showdetails:
+        pass
+    else:
+        print('Issue with an option --showdetails. Please check the accepted values')
+        sys.exit(1)
+
+
+    if severity in accepted_options_severity:
+        pass
+    else:
+        print('Issue with an option --severity. Please check the accepted values')
+        sys.exit(1)
+
+
 
     if args.project and args.version:
         project_name = args.project.strip()
         version = args.version.strip()
 
         if args.auto:
-            auto_project_create_upload_bom(dt_server, dt_api_key, project_name, version, severity, count, returncode, filename)
+            auto_project_create_upload_bom(dt_server, dt_api_key, project_name, version, severity, count, returncode, filename, show_details)
         else:
             project_uuid = project_lookup_create(dt_server, dt_api_key, project_name, version)
             bom_token = read_upload_bom(dt_server, dt_api_key, project_name, version, filename)
