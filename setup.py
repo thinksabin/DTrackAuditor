@@ -13,12 +13,11 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = 'dtrack-auditor'
-DESCRIPTION = 'Python client for OWASP DependencyTrack usage in CI CD. Developed and Tested on OWASP DependencyTrack ' \
-              'version 3.8.0'
+DESCRIPTION = 'Improved client for OWASP DependencyTrack usage in CI CD.'
 URL = 'https://github.com/thinksabin/DTrackAuditor'
 AUTHOR = 'thinksabin'
-REQUIRES_PYTHON = '>=3.8.0'
-VERSION = '0.1.4'
+REQUIRES_PYTHON = '>=3.7.0'
+VERSION = '1.1.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -119,6 +118,7 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8'
     ],
     # $ setup.py publish support.

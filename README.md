@@ -1,55 +1,61 @@
 # DTrackAuditor
-DTrackAuditor is the python script to facilitate usage of [DependencyTrack](https://dependencytrack.org/) in the CI.
 
-Specially made for the non Jenkins CI environment. DependencyTrack already has Jenkins plugin to be used https://plugins.jenkins.io/dependency-track/
+DTrackAuditor is the python script to facilitate usage of [DependencyTrack](https://dependencytrack.org/) in the CI, optionally failing the build based on different parameters.
 
-This script helps to use DependencyTrack in the CI pipeline, failing the build based on different parameters.
-
-The Golang based similar tool already exists here and is easy to use: https://github.com/ozonru/dtrack-audit
-
-
-#### Setup
-Install all the dependencies libraries required.  
-Requirement = Python 3.8 or above  
-Tested on Python 3.8 
-
-
-#### Features  
+### Features  
 
 1. Auto mode for project creation given project name and version. Creates new project with version if already not found.
 2. Auto mode useful for CI pipeline.
 3. Optional filename path. Default is bom.xml
-4. Filter based on severity type (critical, high, medium, low, unassigned) and numbers. 
-eg. if number of critical is higher or equal to 10. Default is critical with 3 counts
-5. Return 0 or 1 exit status for Auto mode.
+4. Filter based on severity type (critical, high, medium, low, unassigned) and numbers, e.g.: if number of critical is higher or equal to 10.
+5. Check policy violations and fail if any found.
+6. Return 0 or 1 exit status for Auto mode.
 
+### Usage
 
-#### Usage
+#### Basic Usage
 
-`python dtrackauditor.py -u 'http://mydtrack.local:8080' -k 'mydtrackapikey' -p myweb -v 1.0.0 -f myweb/target/bom.xml -a`
+```
+python3 dtrackauditor.py \
+    -u 'http://mydtrack.local:8080' \
+    -k 'mydtrackapikey' \
+    -p myweb -v 1.0.0 \
+    -f myweb/target/bom.xml \
+    -a
+```
 
-If environment variable for DTRACK_SERVER and DTRACK_API_KEY are present then the usage can be direct.
+If environment variable for `DTRACK_SERVER` and `DTRACK_API_KEY` are present then the usage can be direct.
 
+```
+python3 dtrackauditor.py  -p myweb -v 1.0.0 -a
+```
 
-`python dtrackauditor.py  -p myweb -v 1.0.0 -a`
+#### Vulnerability Rules
 
-Auto mode for CI/ CD. Use risk, count and trigger flags to change defaults.
-`python dtrackauditor.py -u http://mydtrack.local:8080 -k mydtrackapikey -p hello -v 8.0.0 -a -s critical -c 20 -r 0 -l true`
+Auto mode for CI/CD with support for rules.
 
+```
+python3 dtrackauditor.py \
+    -u http://mydtrack.local:8080 \
+    -k mydtrackapikey \
+    -p hello \
+    -v 8.0.0 \
+    -a \
+    -r critical:1:true,high:2:true,medium:10:true,low:10:false
+```
 
-For more please use --help
+The rules are a list of:
 
-`python dtrackauditor.py  --help`
+```
+<severity>:<count>:<action>
+```
 
----
+Where:
 
-#### Docker usage
+ * severity: Either `critical`, `high`, `medium`, `low`, or `unassigned`
+ * count: If the count of the issues for the `severity` is greater or equal, trigger `action`
+ * action: `true` to fail the test, `false` to just display a warning (default is `true`)
 
-docker run --rm  -v $PWD:/tmp thinksabin/dtrackauditor --url http://192.168.43.221:8081 --apikey XYQAQHW1kECL98LTaxUDjh -f /tmp/bom.xml -p myprojectname -v 2.0.0 -a
+#### Policy Violations
 
-#### Pip usage
-pip install dtrack-auditor
-
-### Setup usage
-Clone the repo from the master branch for the latest test code commits.
-python3 setup.py
+DtrackAuditor return with code 1 (fails the test) in case any Policy Violations detected. This feature is not configurable and cannot be disabled using command line options.

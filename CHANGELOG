@@ -1,0 +1,5 @@
+30/01/2021 - VERSION: 1.1.0 [keymandll]: 
+ * Code refactoring and cleanup
+ * Support for >= Python3.7
+ * Configurable vulnerability policy
+ * Mandatory policy violation check and policy enforcement
