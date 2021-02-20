@@ -11,6 +11,12 @@ DTrackAuditor is the python script to facilitate usage of [DependencyTrack](http
 5. Check policy violations and fail if any found.
 6. Return 0 or 1 exit status for Auto mode.
 
+### Quick Install
+```
+pip install dtrack-auditor
+docker pull thinksabin/dtrackauditor:latest
+```
+
 ### Usage
 
 #### Basic Usage
@@ -22,6 +28,9 @@ python3 dtrackauditor.py \
     -p myweb -v 1.0.0 \
     -f myweb/target/bom.xml \
     -a
+```
+```
+docker run --rm -v $PWD:/tmp thinksabin/dtrackauditor -- required parameters as examples
 ```
 
 If environment variable for `DTRACK_SERVER` and `DTRACK_API_KEY` are present then the usage can be direct.
@@ -59,3 +68,4 @@ Where:
 #### Policy Violations
 
 DtrackAuditor return with code 1 (fails the test) in case any Policy Violations detected. This feature is not configurable and cannot be disabled using command line options.
+
