@@ -18,7 +18,7 @@ DEFAULT_SHOWDETAILS = 'FALSE'
 DEFAULT_TRIGGER = 1
 
 def parse_cmd_args():
-    parser = argparse.ArgumentParser(description='dtrack script for manual or in CI use',
+    parser = argparse.ArgumentParser(description='Dtrackauditor script for manual or in CI use',
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-u', '--url', type=str,
                         help=' * url of dependencytrack host. eg. http://dtrack.abc.local:8080. OR set env $DTRACK_SERVER')
@@ -43,12 +43,12 @@ def parse_cmd_args():
     if args.url is None:
         args.url = DTRACK_SERVER
     if not isinstance(args.url, str) or len(args.url) == 0:
-        print('DependencyTrack server url is required. set env $DTRACK_SERVER or use --url.')
+        print('DependencyTrack server URL is required. Set env $DTRACK_SERVER or use --url.')
         sys.exit(1)
     if args.apikey is None:
         args.apikey = DTRACK_API_KEY
     if not isinstance(args.apikey, str) or len(args.apikey) == 0:
-        print('DependencyTrack api key is required. set env $DTRACK_API_KEY or use --apikey.')
+        print('DependencyTrack api key is required. Set Env $DTRACK_API_KEY or use --apikey.')
         sys.exit(1)
     if args.rules is None:
         args.rules = ''
@@ -75,7 +75,7 @@ def main():
        len(args.project) == 0 or \
        args.version is None or \
        len(args.version) == 0:
-        print('Project name and version are required. Check help --help.')
+        print('Project Name and Version are required. Check help --help.')
         sys.exit(1)
 
     project_name = args.project.strip()
