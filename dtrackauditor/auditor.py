@@ -5,13 +5,12 @@ import base64
 import polling
 import requests
 
-PROXY_PATH = '/api'
-API_PROJECT = PROXY_PATH + '/api/v1/project'
-API_PROJECT_LOOKUP = PROXY_PATH + '/api/v1/project/lookup'
-API_PROJECT_FINDING = PROXY_PATH + '/api/v1/finding/project'
-API_BOM_UPLOAD = PROXY_PATH + '/api/v1/bom'
-API_BOM_TOKEN = PROXY_PATH + '/api/v1/bom/token'
-API_POLICY_VIOLATIONS = PROXY_PATH + '/api/v1/violation/project/%s'
+API_PROJECT = '/api/v1/project'
+API_PROJECT_LOOKUP = '/api/v1/project/lookup'
+API_PROJECT_FINDING = '/api/v1/finding/project'
+API_BOM_UPLOAD = '/api/v1/bom'
+API_BOM_TOKEN = '/api/v1/bom/token'
+API_POLICY_VIOLATIONS = '/api/v1/violation/project/%s'
 
 class Auditor:
 
