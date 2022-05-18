@@ -51,8 +51,9 @@ def parse_cmd_args():
         print('DependencyTrack api key is required. Set Env $DTRACK_API_KEY or use --apikey.')
         sys.exit(1)
     if args.rules is None:
-        args.rules = ''
-    args.rules = list(map(lambda r: r.strip(), args.rules.split(',')))
+        args.rules = []
+    else:
+        args.rules = list(map(lambda r: r.strip(), args.rules.split(',')))
     if args.version is None:
         args.version = DEFAULT_VERSION
     if args.filename is None:
