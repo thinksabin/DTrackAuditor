@@ -98,19 +98,6 @@ class Auditor:
         sys.exit(1)
 
     @staticmethod
-    def auto_project_create_upload_bom(host, key, project_name, version, rules, filename, show_details):
-        print('Auto mode ON')
-        print('Provide project name and version: ', project_name, version)
-        # project_uuid = Auditor.project_lookup_create(host, key, project_name, version)
-        bom_token = Auditor.read_upload_bom(host, key, project_name, version, filename)
-        Auditor.poll_bom_token_being_processed(host, key, bom_token)
-        project_uuid = Auditor.get_project_with_version_id(host, key, project_name, version)
-        Auditor.check_policy_violations(host, key, project_uuid)
-        Auditor.check_vulnerabilities(host, key, project_uuid, rules, show_details)
-
-        sys.exit(0)
-
-    @staticmethod
     def get_project_finding_severity(project_findings):
         severity_count = {
             'CRITICAL': 0,
@@ -163,14 +150,13 @@ class Auditor:
         return response_dict.get('uuid')
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename):
+    def read_upload_bom(host, key, project_name, version, filename, auto_create):
         _xml_data = None
         with open(os.path.join(os.path.dirname(__file__),filename)) as bom_file:
             _xml_data =  bom_file.read()
         data = bytes(_xml_data, encoding='utf-8')
         payload = {
-            # "project": Auditor.get_project_without_version_id(host, key, project_name, version),
-            "autoCreate": True,
+            "autoCreate": auto_create,
             "projectName": project_name,
             "projectVersion": version,
             "bom": str(base64.b64encode(data), "utf-8")
