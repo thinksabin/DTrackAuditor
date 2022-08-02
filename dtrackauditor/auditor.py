@@ -101,10 +101,10 @@ class Auditor:
     def auto_project_create_upload_bom(host, key, project_name, version, rules, filename, show_details):
         print('Auto mode ON')
         print('Provide project name and version: ', project_name, version)
-        project_uuid = Auditor.project_lookup_create(host, key, project_name, version)
+        # project_uuid = Auditor.project_lookup_create(host, key, project_name, version)
         bom_token = Auditor.read_upload_bom(host, key, project_name, version, filename)
         Auditor.poll_bom_token_being_processed(host, key, bom_token)
-
+        project_uuid = Auditor.get_project_with_version_id(host, key, project_name, version)
         Auditor.check_policy_violations(host, key, project_uuid)
         Auditor.check_vulnerabilities(host, key, project_uuid, rules, show_details)
 
@@ -123,17 +123,6 @@ class Auditor:
             severity = component.get('vulnerability').get('severity') 
             severity_count[severity] += 1
         return severity_count
-
-    @staticmethod
-    def project_lookup_create(host, key, project_name, version):
-        project_id = Auditor.get_project_without_version_id(host, key, project_name, version)
-        if project_id is not None:
-            print(' Existing project/ version found: {} {} '.format(project_name, version))
-            return project_id
-        status = Auditor.create_project(host, key, project_name, version)
-        if status == 201:
-            uuid = Auditor.get_project_without_version_id(host, key, project_name, version)
-            return uuid
 
     @staticmethod
     def get_project_findings(host, key , project_id):
@@ -174,27 +163,16 @@ class Auditor:
         return response_dict.get('uuid')
 
     @staticmethod
-    def create_project(host, key, project_name, version):
-        payload = {
-            "name": project_name,
-            "version": version
-        }
-        url = host + API_PROJECT
-        headers = {
-            "content-type": "application/json",
-            "X-API-Key": key
-        }
-        r = requests.put(url, data=json.dumps(payload), headers=headers)
-        return r.status_code
-
-    @staticmethod
     def read_upload_bom(host, key, project_name, version, filename):
         _xml_data = None
         with open(os.path.join(os.path.dirname(__file__),filename)) as bom_file:
             _xml_data =  bom_file.read()
         data = bytes(_xml_data, encoding='utf-8')
         payload = {
-            "project": Auditor.get_project_without_version_id(host, key, project_name, version),
+            # "project": Auditor.get_project_without_version_id(host, key, project_name, version),
+            "autoCreate": True,
+            "projectName": project_name,
+            "projectVersion": version,
             "bom": str(base64.b64encode(data), "utf-8")
         }
         headers = {
@@ -203,4 +181,5 @@ class Auditor:
         }
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers)
         response_dict = json.loads(r.text)
+        print('response_dict: ', response_dict)
         return response_dict.get('token')
