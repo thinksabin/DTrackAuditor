@@ -82,9 +82,9 @@ def main():
     project_name = args.project.strip()
     version = args.version.strip()
 
+    print('Provided project name and version: ', project_name, version)
     if args.auto:
         print('Auto mode ON')
-        print('Provided project name and version: ', project_name, version)
         bom_token = Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, True)
         Auditor.poll_bom_token_being_processed(dt_server, dt_api_key, bom_token)                      
         project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version)

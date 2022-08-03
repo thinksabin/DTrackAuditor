@@ -167,5 +167,4 @@ class Auditor:
         }
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers)
         response_dict = json.loads(r.text)
-        print('response_dict: ', response_dict)
         return response_dict.get('token')
