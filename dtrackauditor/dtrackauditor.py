@@ -82,20 +82,18 @@ def main():
     project_name = args.project.strip()
     version = args.version.strip()
 
+    print('Provided project name and version: ', project_name, version)
     if args.auto:
-        Auditor.auto_project_create_upload_bom(
-            dt_server,
-            dt_api_key,
-            project_name,
-            version,
-            args.rules,
-            filename,
-            show_details
-        )
-        return
-    project_uuid = Auditor.project_lookup_create(dt_server, dt_api_key, project_name, version)
-    Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename)
-    print(project_uuid)
+        print('Auto mode ON')
+        bom_token = Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, True)
+        Auditor.poll_bom_token_being_processed(dt_server, dt_api_key, bom_token)                      
+        project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version)
+        Auditor.check_policy_violations(dt_server, dt_api_key, project_uuid)                          
+        Auditor.check_vulnerabilities(dt_server, dt_api_key, project_uuid, args.rules, show_details)
+    else:
+        project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version)
+        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, False)
+        print(project_uuid)
 
 if __name__ == '__main__':
    main()
