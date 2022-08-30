@@ -1,7 +1,10 @@
 FROM alpine:3.12
 RUN apk --no-cache add python3 py3-pip
-COPY requirements.txt .
-COPY dtrackauditor/dtrackauditor.py .
-RUN chmod +x dtrackauditor.py
-RUN pip install -r requirements.txt
-ENTRYPOINT ["python3", "dtrackauditor.py"]
+WORKDIR /app
+ADD dtrackauditor /app/dtrackauditor
+ADD requirements.txt /app/requirements.txt
+ADD dtrackauditor/dtrackauditor.py /app
+RUN chmod +x /app/dtrackauditor.py
+RUN pip3 install -r /app/requirements.txt
+ENV PYTHONPATH=/app
+ENTRYPOINT ["python3", "/app/dtrackauditor.py"]
