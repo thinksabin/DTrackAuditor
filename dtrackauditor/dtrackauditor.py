@@ -2,9 +2,7 @@
 
 import os
 import sys
-import json
 import argparse
-import requests
 
 from dtrackauditor.auditor import Auditor
 
@@ -39,6 +37,8 @@ def parse_cmd_args():
     parser.add_argument('-l', '--showdetails', type=str,
                         help='displays vulnerabilities details in the stdout based on severity selected. Use with Auto mode.'
                              ' eg values: true or false or all. Default is False.')
+    parser.add_argument('-w', '--wait', action="store_true",
+                        help='wait for uploaded bom to be processed on dependencytrack host.')
     args = parser.parse_args()
     if args.url is None:
         args.url = DTRACK_SERVER
@@ -85,15 +85,13 @@ def main():
     print('Provided project name and version: ', project_name, version)
     if args.auto:
         print('Auto mode ON')
-        bom_token = Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, True)
-        Auditor.poll_bom_token_being_processed(dt_server, dt_api_key, bom_token)                      
+        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, True, wait=args.wait)
         project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version)
-        Auditor.check_policy_violations(dt_server, dt_api_key, project_uuid)                          
-        Auditor.check_vulnerabilities(dt_server, dt_api_key, project_uuid, args.rules, show_details)
+        if project_uuid:
+            Auditor.check_policy_violations(dt_server, dt_api_key, project_uuid)
+            Auditor.check_vulnerabilities(dt_server, dt_api_key, project_uuid, args.rules, show_details)
     else:
-        project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version)
-        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, False)
-        print(project_uuid)
+        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, False, wait=args.wait)
 
 if __name__ == '__main__':
    main()

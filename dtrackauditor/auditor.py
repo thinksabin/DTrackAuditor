@@ -1,9 +1,9 @@
-import os
 import sys
 import json
 import base64
 import polling
 import requests
+from pathlib import Path
 
 API_PROJECT = '/api/v1/project'
 API_PROJECT_LOOKUP = '/api/v1/project/lookup'
@@ -21,6 +21,8 @@ class Auditor:
 
     @staticmethod
     def poll_bom_token_being_processed(host, key, bom_token):
+        print("Waiting for bom to be processed on dt server ...")
+        print(f"Processing token uuid is {bom_token}")
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
         headers = {
             "content-type": "application/json",
@@ -50,6 +52,9 @@ class Auditor:
             "X-API-Key": key
         }
         r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            print(f"Cannot get policy violations: {r.status_code} {r.reason}")
+            return {}
         return json.loads(r.text)
 
     @staticmethod
@@ -90,7 +95,7 @@ class Auditor:
             return
         print("%d policy violations found:" % len(policy_violations))
         for violation in policy_violations:
-            print("\t[%s] %s: %s" %  ( 
+            print("\t[%s] %s: %s" %  (
                 violation.get('type'),
                 violation.get('component'),
                 violation.get('text')
@@ -107,7 +112,7 @@ class Auditor:
             'UNASSIGNED': 0
         }
         for component in project_findings:
-            severity = component.get('vulnerability').get('severity') 
+            severity = component.get('vulnerability').get('severity')
             severity_count[severity] += 1
         return severity_count
 
@@ -119,17 +124,22 @@ class Auditor:
             "X-API-Key": key
         }
         r = requests.get(url, headers=headers)
-        response_dict = json.loads(r.text)
-        return response_dict
+        if r.status_code != 200:
+            print(f"Cannot get project findings: {r.status_code} {r.reason}")
+            return {}
+        return json.loads(r.text)
 
     @staticmethod
     def get_project_without_version_id(host, key, project_name, version):
         url = host + API_PROJECT
         headers = {
-            "content-type": "application/json", 
+            "content-type": "application/json",
             "X-API-Key": key
         }
         r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            print("Cannot get project without version id: {r.status_code} {r.reason}")
+            return None
         response_dict = json.loads(r.text)
         for project in response_dict:
             if project_name == project.get('name') and project.get('version') == version:
@@ -146,13 +156,23 @@ class Auditor:
             "X-API-Key": key
         }
         res = requests.get(url, headers=headers)
+        if res.status_code != 200:
+            print(f"Cannot get project id: {res.status_code} {res.reason}")
+            return ""
         response_dict = json.loads(res.text)
         return response_dict.get('uuid')
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename, auto_create):
+    def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False):
         _xml_data = None
-        with open(os.path.join(os.path.dirname(__file__),filename)) as bom_file:
+        print(f"Uploading {filename} ...")
+        filename = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
+
+        if not Path(filename).exists():
+            print(f"{filename} not found !")
+            sys.exit(1)
+
+        with open(filename) as bom_file:
             _xml_data =  bom_file.read()
         data = bytes(_xml_data, encoding='utf-8')
         payload = {
@@ -162,9 +182,14 @@ class Auditor:
             "bom": str(base64.b64encode(data), "utf-8")
         }
         headers = {
-            "content-type": "application/json", 
+            "content-type": "application/json",
             "X-API-Key": key
         }
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers)
-        response_dict = json.loads(r.text)
-        return response_dict.get('token')
+        if r.status_code != 200:
+            print(f"Cannot upload {filename}: {r.status_code} {r.reason}")
+            sys.exit(1)
+
+        bom_token = json.loads(r.text).get('token')
+        if bom_token and wait:
+            Auditor.poll_bom_token_being_processed(host, key, bom_token)
