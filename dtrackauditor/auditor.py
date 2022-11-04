@@ -164,7 +164,6 @@ class Auditor:
 
     @staticmethod
     def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False):
-        _xml_data = None
         print(f"Uploading {filename} ...")
         filename = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
 
@@ -172,14 +171,19 @@ class Auditor:
             print(f"{filename} not found !")
             sys.exit(1)
 
-        with open(filename) as bom_file:
-            _xml_data =  bom_file.read()
-        data = bytes(_xml_data, encoding='utf-8')
+        with open(filename, "r", encoding="utf-8-sig") as bom_file:
+            # Reencode merged BOM file
+            # Some tools like 'cyclonedx-cli' generates a file encoded as 'UTF-8 with BOM' (utf-8-sig)
+            # which is not supported by dependency track, so we need to convert it as 'UTF-8'.
+            _xml_data = bom_file.read().encode("utf-8")
+            # Encode BOM file into base64 then upload to Dependency Track
+            data = base64.b64encode(_xml_data).decode("utf-8")
+
         payload = {
             "autoCreate": auto_create,
             "projectName": project_name,
             "projectVersion": version,
-            "bom": str(base64.b64encode(data), "utf-8")
+            "bom": data
         }
         headers = {
             "content-type": "application/json",
