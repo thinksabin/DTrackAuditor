@@ -1,4 +1,4 @@
-FROM alpine:3.12
+FROM alpine:3.17
 RUN apk --no-cache add python3 py3-pip
 COPY requirements.txt .
 COPY dtrackauditor/dtrackauditor.py .
