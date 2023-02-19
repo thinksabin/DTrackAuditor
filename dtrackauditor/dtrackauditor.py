@@ -4,7 +4,7 @@ import os
 import sys
 import argparse
 
-from dtrackauditor.auditor import Auditor
+from auditor import Auditor
 
 DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
 DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
