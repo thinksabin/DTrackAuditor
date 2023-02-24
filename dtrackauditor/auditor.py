@@ -11,6 +11,7 @@ API_PROJECT_FINDING = '/api/v1/finding/project'
 API_BOM_UPLOAD = '/api/v1/bom'
 API_BOM_TOKEN = '/api/v1/bom/token'
 API_POLICY_VIOLATIONS = '/api/v1/violation/project/%s'
+API_VERSION = '/api/version'
 
 class Auditor:
 
@@ -176,8 +177,12 @@ class Auditor:
             # Some tools like 'cyclonedx-cli' generates a file encoded as 'UTF-8 with BOM' (utf-8-sig)
             # which is not supported by dependency track, so we need to convert it as 'UTF-8'.
             _xml_data = bom_file.read().encode("utf-8")
-            # Encode BOM file into base64 then upload to Dependency Track
+            # # Encode BOM file into base64 then upload to Dependency Track
             data = base64.b64encode(_xml_data).decode("utf-8")
+            # _xml_data = bom_file.read()
+            # # # Encode BOM file into base64 then upload to Dependency Track
+            # data = _xml_data
+            print(data)
 
         payload = {
             "autoCreate": auto_create,
@@ -187,7 +192,7 @@ class Auditor:
         }
         headers = {
             "content-type": "application/json",
-            "X-API-Key": key
+            "X-API-Key": key.strip()
         }
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers)
         if r.status_code != 200:
@@ -197,3 +202,21 @@ class Auditor:
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
             Auditor.poll_bom_token_being_processed(host, key, bom_token)
+
+    @staticmethod
+    def get_dependencytrack_version(host, key):
+        print("getting version of OWASP DependencyTrack")
+        print(host, key)
+        url = host + API_VERSION
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key.strip()
+        }
+        print(url)
+        res = requests.get(url, headers=headers)
+        if res.status_code != 200:
+            print(f"Cannot connect to the server {res.status_code} {res.reason}")
+            return ""
+        response_dict = json.loads(res.text)
+        print(response_dict)
+        return response_dict
