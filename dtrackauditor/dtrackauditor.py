@@ -39,7 +39,7 @@ def parse_cmd_args():
                              ' eg values: true or false or all. Default is False.')
     parser.add_argument('-w', '--wait', action="store_true",
                         help='wait for uploaded bom to be processed on dependencytrack host.')
-    parser.add_argument('-c', '--getversion', type=str, help='get version of dependencytrack host. Useful to do a quick '
+    parser.add_argument('-c', '--getversion', nargs='?', const=1, type=int, help='get version of dependencytrack host. Useful to do a quick '
                                                             'connection test.')
     args = parser.parse_args()
 
@@ -80,6 +80,7 @@ def main():
 
     if args.getversion:
         Auditor.get_dependencytrack_version(dt_server, dt_api_key)
+        sys.exit(0)
 
     if show_details not in ['TRUE', 'FALSE', 'ALL']:
         print('Issue with an option --showdetails. Please check the accepted values.')
