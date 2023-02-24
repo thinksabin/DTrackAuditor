@@ -4,10 +4,10 @@ import os
 import sys
 import argparse
 
-from dtrackauditor.auditor import Auditor
+from auditor import Auditor
 
-DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
-DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
+# DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
+# DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
 
 DEFAULT_VERSION = '1.0.0'
 DEFAULT_FILENAME = '../bom.xml'
@@ -39,14 +39,21 @@ def parse_cmd_args():
                              ' eg values: true or false or all. Default is False.')
     parser.add_argument('-w', '--wait', action="store_true",
                         help='wait for uploaded bom to be processed on dependencytrack host.')
+    parser.add_argument('-c', '--getversion', nargs='?', const=1, type=int, help='get version of dependencytrack host. Useful to do a quick '
+                                                            'connection test.')
     args = parser.parse_args()
+
     if args.url is None:
+        DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
+        if DTRACK_SERVER[-1] == '/':
+            DTRACK_SERVER = DTRACK_SERVER[:-1]
         args.url = DTRACK_SERVER
     if not isinstance(args.url, str) or len(args.url) == 0:
-        print('DependencyTrack server URL is required. Set env $DTRACK_SERVER or use --url.')
+        print('DependencyTrack server URL is required. Set env $DTRACK_SERVER or use --url.eg: http://dtrack.my.local')
         sys.exit(1)
     if args.apikey is None:
-        args.apikey = DTRACK_API_KEY
+        DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
+        args.apikey = DTRACK_API_KEY.strip()
     if not isinstance(args.apikey, str) or len(args.apikey) == 0:
         print('DependencyTrack api key is required. Set Env $DTRACK_API_KEY or use --apikey.')
         sys.exit(1)
@@ -65,9 +72,15 @@ def parse_cmd_args():
 def main():
     args = parse_cmd_args()
     dt_server = args.url.strip()
+    if dt_server[-1] == '/':
+        dt_server = dt_server[:-1]
     dt_api_key = args.apikey.strip()
     filename = args.filename.strip()
     show_details = args.showdetails.strip().upper()
+
+    if args.getversion:
+        Auditor.get_dependencytrack_version(dt_server, dt_api_key)
+        sys.exit(0)
 
     if show_details not in ['TRUE', 'FALSE', 'ALL']:
         print('Issue with an option --showdetails. Please check the accepted values.')
@@ -76,7 +89,7 @@ def main():
        len(args.project) == 0 or \
        args.version is None or \
        len(args.version) == 0:
-        print('Project Name and Version are required. Check help --help.')
+        print('Project Name (-p) and Version (-v) are required. Check help --help.')
         sys.exit(1)
 
     project_name = args.project.strip()
