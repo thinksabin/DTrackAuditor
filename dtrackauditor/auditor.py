@@ -182,7 +182,7 @@ class Auditor:
             # _xml_data = bom_file.read()
             # # # Encode BOM file into base64 then upload to Dependency Track
             # data = _xml_data
-            print(data)
+            #print(data)
 
         payload = {
             "autoCreate": auto_create,
@@ -192,7 +192,7 @@ class Auditor:
         }
         headers = {
             "content-type": "application/json",
-            "X-API-Key": key.strip()
+            "X-API-Key": key
         }
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers)
         if r.status_code != 200:
