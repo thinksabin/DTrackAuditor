@@ -2,6 +2,10 @@
 
 DTrackAuditor is the python script to facilitate usage of [DependencyTrack](https://dependencytrack.org/) in the CI, optionally failing the build based on different parameters.
 
+# Development and Tests
+python 3.10.6
+DependencyTrack 4.7
+
 ### Features  
 
 1. Auto mode for project creation given project name and version. Creates new project with version if already not found.
@@ -15,6 +19,7 @@ DTrackAuditor is the python script to facilitate usage of [DependencyTrack](http
 ```
 pip install dtrack-auditor
 docker pull thinksabin/dtrackauditor:latest
+git clone https://github.com/thinksabin/DTrackAuditor.git
 ```
 
 ### Usage
@@ -69,3 +74,5 @@ Where:
 
 DtrackAuditor return with code 1 (fails the test) in case any Policy Violations detected. This feature is not configurable and cannot be disabled using command line options.
 
+# For enhancement
+Please create issues for bug reports and suggestions. Thanks.

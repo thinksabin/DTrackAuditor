@@ -3,3 +3,14 @@
  * Support for >= Python3.7
  * Configurable vulnerability policy
  * Mandatory policy violation check and policy enforcement
+
+24/02/2023 - VERSION: 1.2.0:
+* added constant int value to --getversion for ease usage
+* added condition to get env variable only if argument is not given for server url and api key
+* added version info getter argument, corrected key stripping
+* updated dockerfile and requirement file
+* corrected import
+* updated docker base & requirements
+* fix: support 'utf-8 with bom' format
+* fix: handle requests errors properly, add --wait option
+* fix: use correct directory structure to work as python module
