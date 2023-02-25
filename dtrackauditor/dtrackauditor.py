@@ -6,8 +6,8 @@ import argparse
 
 from dtrackauditor.auditor import Auditor
 
-# DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
-# DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
+DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
+DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
 
 DEFAULT_VERSION = '1.0.0'
 DEFAULT_FILENAME = '../bom.xml'
@@ -44,15 +44,11 @@ def parse_cmd_args():
     args = parser.parse_args()
 
     if args.url is None:
-        DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
-        if DTRACK_SERVER[-1] == '/':
-            DTRACK_SERVER = DTRACK_SERVER[:-1]
-        args.url = DTRACK_SERVER
+        args.url = DTRACK_SERVER.strip()
     if not isinstance(args.url, str) or len(args.url) == 0:
         print('DependencyTrack server URL is required. Set env $DTRACK_SERVER or use --url.eg: http://dtrack.my.local')
         sys.exit(1)
     if args.apikey is None:
-        DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
         args.apikey = DTRACK_API_KEY.strip()
     if not isinstance(args.apikey, str) or len(args.apikey) == 0:
         print('DependencyTrack api key is required. Set Env $DTRACK_API_KEY or use --apikey.')
