@@ -453,7 +453,13 @@ class Auditor:
         #return None
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename, auto_create, project_uuid=None, wait=False, verify=True):
+    def read_upload_bom(
+        host, key,
+        project_name, version, filename, auto_create,
+        project_uuid=None,
+        parent_project=None, parent_version=None, parent_uuid=None,
+        wait=False, verify=True
+    ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (
@@ -483,6 +489,16 @@ class Auditor:
 
         if version is not None:
             payload["projectVersion"] = version
+
+        # These where added in version 4.8 of DT
+        if parent_project:
+            payload["parentName"] =  parent_project
+
+        if parent_version:
+            payload["parentVersion"] = parent_version
+
+        if parent_uuid:
+            payload["parentUUID"] = parent_uuid
 
         headers = {
             "content-type": "application/json",
