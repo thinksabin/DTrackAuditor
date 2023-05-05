@@ -179,7 +179,7 @@ class Auditor:
         return response_dict.get('uuid')
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False, verify=True):
+    def read_upload_bom(host, key, project_name, version, filename, parent_project, parent_version, parent_uuid, auto_create, wait=False, verify=True):
         print(f"Uploading {filename} ...")
         filename = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
 
@@ -204,6 +204,17 @@ class Auditor:
             "projectVersion": version,
             "bom": data
         }
+
+        # These where added in version 4.8 of DT
+        if parent_project :
+            payload["parentName"] =  parent_project
+
+        if parent_version : 
+            payload["parentVersion"] = parent_version
+        
+        if parent_uuid :
+            payload["parentUUID"] = parent_uuid
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
