@@ -13,6 +13,21 @@ API_BOM_TOKEN = '/api/v1/bom/token'
 API_POLICY_VIOLATIONS = '/api/v1/violation/project/%s'
 API_VERSION = '/api/version'
 
+class AuditorException(Exception):
+    """ Dependency-Track Auditor did not pass a test or had other run-time errors """
+
+    INSTANT_EXIT = True
+    """ Instead of raising an exception that may be caught by code,
+    print the message and exit (legacy behavior for the CLI tool) """
+
+    def __init__(self, message = "Dependency-Track Auditor did not pass a test"):
+        if AuditorException.INSTANT_EXIT:
+            print(message)
+            sys.exit(1)
+
+        self.message = message
+        super().__init__(self.message)
+
 class Auditor:
 
     @staticmethod
@@ -79,9 +94,10 @@ class Auditor:
             if s_issue_count is None:
                 continue
             if s_issue_count >= int(count):
-                print("Threshold for %s severity issues exceeded.")
+                message = "Threshold for %s severity issues exceeded." % severity.upper()
                 if fail is True:
-                    sys.exit(1)
+                    raise AuditorException(message)
+                print(message)
 
         print('Vulnerability audit resulted in no violations.')
 
@@ -89,8 +105,7 @@ class Auditor:
     def check_policy_violations(host, key, project_uuid):
         policy_violations = Auditor.get_project_policy_violations(host, key, project_uuid)
         if not isinstance(policy_violations, list):
-            print("Invalid response when fetching policy violations.")
-            sys.exit(1)
+            raise AuditorException("Invalid response when fetching policy violations.")
         if len(policy_violations) == 0:
             print("No policy violations found.")
             return
@@ -101,7 +116,8 @@ class Auditor:
                 violation.get('component'),
                 violation.get('text')
             ) )
-        sys.exit(1)
+        # TODO: A special Exception class with an actual copy of policy_violations[]
+        raise AuditorException("%d policy violations found:" % len(policy_violations))
 
     @staticmethod
     def get_project_finding_severity(project_findings):
@@ -169,8 +185,7 @@ class Auditor:
         filename = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
 
         if not Path(filename).exists():
-            print(f"{filename} not found !")
-            sys.exit(1)
+            raise AuditorException(f"{filename} not found !")
 
         with open(filename, "r", encoding="utf-8-sig") as bom_file:
             # Reencode merged BOM file
@@ -196,8 +211,7 @@ class Auditor:
         }
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers)
         if r.status_code != 200:
-            print(f"Cannot upload {filename}: {r.status_code} {r.reason}")
-            sys.exit(1)
+            raise AuditorException(f"Cannot upload {filename}: {r.status_code} {r.reason}")
 
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
