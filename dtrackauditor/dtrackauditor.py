@@ -4,7 +4,11 @@ import os
 import sys
 import argparse
 
-from dtrackauditor.auditor import Auditor
+try:
+    from dtrackauditor.auditor import Auditor
+except ModuleNotFoundError:
+    # Same dir (running from Git checkout)?..
+    from auditor import Auditor
 
 DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
 DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')

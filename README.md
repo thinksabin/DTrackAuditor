@@ -33,8 +33,6 @@ docker pull thinksabin/dtrackauditor:latest
 ```
 git clone https://github.com/thinksabin/DTrackAuditor.git
 ```
-Note: if you are doing git clone and executing dtrackauditor.py then do correct the import of Auditor or
-place the dtrackauditor.py file outside dtrackauditor folder. Let me know if there is proper way to handle this. :)
 
 ### Usage
 
