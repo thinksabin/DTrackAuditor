@@ -6,9 +6,11 @@ import argparse
 
 try:
     from dtrackauditor.auditor import Auditor
+    from dtrackauditor.auditor import AuditorException
 except ModuleNotFoundError:
     # Same dir (running from Git checkout)?..
     from auditor import Auditor
+    from auditor import AuditorException
 
 DTRACK_SERVER = os.environ.get('DTRACK_SERVER')
 DTRACK_API_KEY = os.environ.get('DTRACK_API_KEY')
@@ -50,13 +52,11 @@ def parse_cmd_args():
     if args.url is None:
         args.url = DTRACK_SERVER
     if not isinstance(args.url, str) or len(args.url) == 0:
-        print('DependencyTrack server URL is required. Set env $DTRACK_SERVER or use --url.eg: http://dtrack.my.local')
-        sys.exit(1)
+        raise AuditorException('DependencyTrack server URL is required. Set env $DTRACK_SERVER or use --url.eg: http://dtrack.my.local')
     if args.apikey is None:
         args.apikey = DTRACK_API_KEY
     if not isinstance(args.apikey, str) or len(args.apikey) == 0:
-        print('DependencyTrack api key is required. Set Env $DTRACK_API_KEY or use --apikey.')
-        sys.exit(1)
+        raise AuditorException('DependencyTrack api key is required. Set Env $DTRACK_API_KEY or use --apikey.')
     if args.rules is None:
         args.rules = []
     else:
@@ -70,6 +70,10 @@ def parse_cmd_args():
     return args
 
 def main():
+    # Instead of raising an exception that may be caught by code,
+    # print the message and exit (legacy behavior for the CLI tool):
+    AuditorException.INSTANT_EXIT = True
+
     args = parse_cmd_args()
     dt_server = args.url.strip()
     if dt_server[-1] == '/':
@@ -83,14 +87,12 @@ def main():
         sys.exit(0)
 
     if show_details not in ['TRUE', 'FALSE', 'ALL']:
-        print('Issue with an option --showdetails. Please check the accepted values.')
-        sys.exit(1)
+        raise AuditorException('Issue with an option --showdetails. Please check the accepted values.')
     if args.project is None or \
        len(args.project) == 0 or \
        args.version is None or \
        len(args.version) == 0:
-        print('Project Name (-p) and Version (-v) are required. Check help --help.')
-        sys.exit(1)
+        raise AuditorException('Project Name (-p) and Version (-v) are required. Check help --help.')
 
     project_name = args.project.strip()
     version = args.version.strip()
