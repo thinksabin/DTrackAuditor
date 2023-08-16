@@ -1,3 +1,2 @@
-
-#the version of dtrackauditor
+# The version of dtrackauditor
 __version__ = "1.2.3"
