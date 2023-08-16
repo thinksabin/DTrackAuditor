@@ -59,6 +59,7 @@ servers), and if this setup uses self-signed certificates or those issued by
 a private (corporate) Certificate Authority, you may benefit from passing
 a path to PEM file with the trust chain using `DTRACK_SERVER_CERTCHAIN`
 environment variable or the `-C`/`--certchain` command-line argument.
+Such argument may also be `none` to trust any HTTPS server blindly.
 
 * As a Docker container:
 ```
