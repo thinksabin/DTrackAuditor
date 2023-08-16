@@ -25,7 +25,7 @@ def parse_cmd_args():
     parser.add_argument('-k', '--apikey', type=str,
                         help=' * api key of dependencytrack host. eg. adfadfe343g. OR set env $DTRACK_API_KEY')
     parser.add_argument('-C', '--certchain', type=str,
-                        help=' * path to file with cert chain of dependencytrack host (if HTTPS and not using a well-known CA). OR set env $DTRACK_SERVER_CERTCHAIN')
+                        help=' * path to file with cert chain of dependencytrack host (if HTTPS and not using a well-known CA). OR set env $DTRACK_SERVER_CERTCHAIN; may use "none" to trust anything')
     parser.add_argument('-p', '--project', type=str,
                         help=' * project name to be used in dependencytrack.eg: mywebapp. *')
     parser.add_argument('-v', '--version', type=str,
@@ -61,16 +61,20 @@ def parse_cmd_args():
         args.certchain = DTRACK_SERVER_CERTCHAIN
     if args.url.lower().startswith("https://"):
         if not isinstance(args.certchain, str) or len(args.certchain) == 0:
-            print('DependencyTrack server is HTTPS but no path to file with cert chain was provided (may be required if not using a well-known CA). Set Env $DTRACK_SERVER_CERTCHAIN or use --certchain if requests fail.')
-            # Ends up as "verify" argument to requests.get() et al:
-            args.certchain = False
+            print('WARNING: DependencyTrack server is HTTPS but no path to file with cert chain was provided (may be required if not using a well-known CA). Set Env $DTRACK_SERVER_CERTCHAIN or use --certchain if requests fail.')
+            # Ends up as "verify" argument to requests.get() et al to require known trusted certs (default):
+            args.certchain = True
         else:
-            if not os.path.exists(args.certchain):
-                print('DependencyTrack server is HTTPS but specified path to file with cert chain is missing: %s' % args.certchain)
-                sys.exit(1)
-            if not os.path.isabs(args.certchain):
-                # Be sure to use the intended file even if we chdir() later in the program:
-                args.certchain = os.path.sep.join([os.getcwd(), args.certchain])
+            if args.certchain in ['False', 'None', 'none']:
+                # Ends up as "verify" argument to requests.get() et al to trust anything:
+                args.certchain = False
+            else:
+                if not os.path.exists(args.certchain):
+                    print('DependencyTrack server is HTTPS but specified path to file with cert chain is missing: %s' % args.certchain)
+                    sys.exit(1)
+                if not os.path.isabs(args.certchain):
+                    # Be sure to use the intended file even if we chdir() later in the program:
+                    args.certchain = os.path.sep.join([os.getcwd(), args.certchain])
     if args.rules is None:
         args.rules = []
     else:

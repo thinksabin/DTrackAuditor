@@ -20,7 +20,7 @@ class Auditor:
         return status == False
 
     @staticmethod
-    def poll_bom_token_being_processed(host, key, bom_token, verify=False):
+    def poll_bom_token_being_processed(host, key, bom_token, verify=True):
         print("Waiting for bom to be processed on dt server ...")
         print(f"Processing token uuid is {bom_token}")
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
@@ -45,7 +45,7 @@ class Auditor:
         }
 
     @staticmethod
-    def get_project_policy_violations(host, key, project_id, verify=False):
+    def get_project_policy_violations(host, key, project_id, verify=True):
         url = host + API_POLICY_VIOLATIONS % project_id
         headers = {
             "content-type": "application/json",
@@ -58,7 +58,7 @@ class Auditor:
         return json.loads(r.text)
 
     @staticmethod
-    def check_vulnerabilities(host, key, project_uuid, rules, show_details, verify=False):
+    def check_vulnerabilities(host, key, project_uuid, rules, show_details, verify=True):
         project_findings = Auditor.get_project_findings(host, key, project_uuid, verify=verify)
         severity_scores = Auditor.get_project_finding_severity(project_findings)
         print(severity_scores)
@@ -85,7 +85,7 @@ class Auditor:
         print('Vulnerability audit resulted in no violations.')
 
     @staticmethod
-    def check_policy_violations(host, key, project_uuid, verify=False):
+    def check_policy_violations(host, key, project_uuid, verify=True):
         policy_violations = Auditor.get_project_policy_violations(host, key, project_uuid, verify=verify)
         if not isinstance(policy_violations, list):
             print("Invalid response when fetching policy violations.")
@@ -117,7 +117,7 @@ class Auditor:
         return severity_count
 
     @staticmethod
-    def get_project_findings(host, key, project_id, verify=False):
+    def get_project_findings(host, key, project_id, verify=True):
         url = host + API_PROJECT_FINDING + '/{}'.format(project_id)
         headers = {
             "content-type": "application/json",
@@ -130,7 +130,7 @@ class Auditor:
         return json.loads(r.text)
 
     @staticmethod
-    def get_project_without_version_id(host, key, project_name, version, verify=False):
+    def get_project_without_version_id(host, key, project_name, version, verify=True):
         url = host + API_PROJECT
         headers = {
             "content-type": "application/json",
@@ -147,7 +147,7 @@ class Auditor:
                 return _project_id
 
     @staticmethod
-    def get_project_with_version_id(host, key, project_name, version, verify=False):
+    def get_project_with_version_id(host, key, project_name, version, verify=True):
         project_name = project_name
         version = version
         url = host + API_PROJECT_LOOKUP + '?name={}&version={}'.format(project_name, version)
@@ -163,7 +163,7 @@ class Auditor:
         return response_dict.get('uuid')
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False, verify=False):
+    def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False, verify=True):
         print(f"Uploading {filename} ...")
         filename = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
 
@@ -203,7 +203,7 @@ class Auditor:
             Auditor.poll_bom_token_being_processed(host, key, bom_token)
 
     @staticmethod
-    def get_dependencytrack_version(host, key, verify=False):
+    def get_dependencytrack_version(host, key, verify=True):
         print("getting version of OWASP DependencyTrack")
         print(host, key)
         url = host + API_VERSION
