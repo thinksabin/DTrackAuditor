@@ -29,14 +29,13 @@ class AuditorException(Exception):
         super().__init__(self.message)
 
 class Auditor:
-
     @staticmethod
     def poll_response(response):
         status = json.loads(response.text).get('processing')
         return status == False
 
     @staticmethod
-    def poll_bom_token_being_processed(host, key, bom_token):
+    def poll_bom_token_being_processed(host, key, bom_token, verify=False):
         print("Waiting for bom to be processed on dt server ...")
         print(f"Processing token uuid is {bom_token}")
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
@@ -45,7 +44,7 @@ class Auditor:
             "X-API-Key": key
         }
         result = polling.poll(
-            lambda: requests.get(url, headers=headers),
+            lambda: requests.get(url, headers=headers, verify=verify),
             step=5,
             poll_forever=True,
             check_success=Auditor.poll_response
@@ -61,21 +60,21 @@ class Auditor:
         }
 
     @staticmethod
-    def get_project_policy_violations(host, key, project_id):
+    def get_project_policy_violations(host, key, project_id, verify=False):
         url = host + API_POLICY_VIOLATIONS % project_id
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
         }
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, verify=verify)
         if r.status_code != 200:
             print(f"Cannot get policy violations: {r.status_code} {r.reason}")
             return {}
         return json.loads(r.text)
 
     @staticmethod
-    def check_vulnerabilities(host, key, project_uuid, rules, show_details):
-        project_findings = Auditor.get_project_findings(host, key, project_uuid)
+    def check_vulnerabilities(host, key, project_uuid, rules, show_details, verify=False):
+        project_findings = Auditor.get_project_findings(host, key, project_uuid, verify=verify)
         severity_scores = Auditor.get_project_finding_severity(project_findings)
         print(severity_scores)
 
@@ -102,8 +101,8 @@ class Auditor:
         print('Vulnerability audit resulted in no violations.')
 
     @staticmethod
-    def check_policy_violations(host, key, project_uuid):
-        policy_violations = Auditor.get_project_policy_violations(host, key, project_uuid)
+    def check_policy_violations(host, key, project_uuid, verify=False):
+        policy_violations = Auditor.get_project_policy_violations(host, key, project_uuid, verify=verify)
         if not isinstance(policy_violations, list):
             raise AuditorException("Invalid response when fetching policy violations.")
         if len(policy_violations) == 0:
@@ -134,26 +133,26 @@ class Auditor:
         return severity_count
 
     @staticmethod
-    def get_project_findings(host, key , project_id):
+    def get_project_findings(host, key, project_id, verify=False):
         url = host + API_PROJECT_FINDING + '/{}'.format(project_id)
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
         }
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, verify=verify)
         if r.status_code != 200:
             print(f"Cannot get project findings: {r.status_code} {r.reason}")
             return {}
         return json.loads(r.text)
 
     @staticmethod
-    def get_project_without_version_id(host, key, project_name, version):
+    def get_project_without_version_id(host, key, project_name, version, verify=False):
         url = host + API_PROJECT
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
         }
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, verify=verify)
         if r.status_code != 200:
             print("Cannot get project without version id: {r.status_code} {r.reason}")
             return None
@@ -164,7 +163,7 @@ class Auditor:
                 return _project_id
 
     @staticmethod
-    def get_project_with_version_id(host, key, project_name, version):
+    def get_project_with_version_id(host, key, project_name, version, verify=False):
         project_name = project_name
         version = version
         url = host + API_PROJECT_LOOKUP + '?name={}&version={}'.format(project_name, version)
@@ -172,7 +171,7 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        res = requests.get(url, headers=headers)
+        res = requests.get(url, headers=headers, verify=verify)
         if res.status_code != 200:
             print(f"Cannot get project id: {res.status_code} {res.reason}")
             return ""
@@ -180,7 +179,7 @@ class Auditor:
         return response_dict.get('uuid')
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False):
+    def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False, verify=False):
         print(f"Uploading {filename} ...")
         filename = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
 
@@ -209,7 +208,7 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers)
+        r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
             raise AuditorException(f"Cannot upload {filename}: {r.status_code} {r.reason}")
 
@@ -218,7 +217,7 @@ class Auditor:
             Auditor.poll_bom_token_being_processed(host, key, bom_token)
 
     @staticmethod
-    def get_dependencytrack_version(host, key):
+    def get_dependencytrack_version(host, key, verify=False):
         print("getting version of OWASP DependencyTrack")
         print(host, key)
         url = host + API_VERSION
@@ -227,7 +226,7 @@ class Auditor:
             "X-API-Key": key.strip()
         }
         print(url)
-        res = requests.get(url, headers=headers)
+        res = requests.get(url, headers=headers, verify=verify)
         if res.status_code != 200:
             print(f"Cannot connect to the server {res.status_code} {res.reason}")
             return ""

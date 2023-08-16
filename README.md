@@ -53,6 +53,13 @@ If environment variable for `DTRACK_SERVER` and `DTRACK_API_KEY` are present the
 python3 dtrackauditor.py  -p myweb -v 1.0.0 -a
 ```
 
+If your DependencyTrack server is exposed through an HTTPS listener (e.g.
+using an nginx or apache web-server as a reverse proxy for the UI and API
+servers), and if this setup uses self-signed certificates or those issued by
+a private (corporate) Certificate Authority, you may benefit from passing
+a path to PEM file with the trust chain using `DTRACK_SERVER_CERTCHAIN`
+environment variable or the `-C`/`--certchain` command-line argument.
+
 * As a Docker container:
 ```
 docker run --rm -v $PWD:/tmp \
