@@ -6,6 +6,7 @@ import requests
 from pathlib import Path
 
 API_PROJECT = '/api/v1/project'
+API_PROJECT_CLONE = '/api/v1/project/clone'
 API_PROJECT_LOOKUP = '/api/v1/project/lookup'
 API_PROJECT_FINDING = '/api/v1/finding/project'
 API_BOM_UPLOAD = '/api/v1/bom'
@@ -261,6 +262,95 @@ class Auditor:
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
             Auditor.poll_bom_token_being_processed(host, key, bom_token)
+
+        return bom_token
+
+    @staticmethod
+    def clone_project_by_uuid(host, key, old_project_version_uuid,
+                           new_version, new_name=None, includeALL=True,
+                           includeACL=None, includeAuditHistory=None,
+                           includeComponents=None, includeProperties=None,
+                           includeServices=None, includeTags=None,
+                           wait=False, verify=True):
+        print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
+
+        # Note that DT does not constrain the ability to assign arbitrary
+        # values (which match the schema) to project name and version -
+        # even if they seem to duplicate an existing entity. Project UUID
+        # of each instance is what matters. Same-ness of names allows it
+        # to group separate versions of the project.
+        payload = {
+            "project":              "%s" % old_project_version_uuid,
+            "version":              "%s" % new_version,
+            "includeACL":           (includeACL if (includeACL is not None) else (includeALL is True)),
+            "includeAuditHistory":  (includeAuditHistory if (includeAuditHistory is not None) else (includeALL is True)),
+            "includeComponents":    (includeComponents if (includeComponents is not None) else (includeALL is True)),
+            "includeProperties":    (includeProperties if (includeProperties is not None) else (includeALL is True)),
+            "includeServices":      (includeServices if (includeServices is not None) else (includeALL is True)),
+            "includeTags":          (includeTags if (includeTags is not None) else (includeALL is True))
+        }
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.put(host + API_PROJECT_CLONE, data=json.dumps(payload), headers=headers, verify=verify)
+        if r.status_code != 200:
+            raise AuditorException(f"Cannot clone {old_project_version_uuid}: {r.status_code} {r.reason}")
+
+        new_project_uuid = json.loads(r.text).get('uuid')
+        if new_project_uuid and wait:
+            Auditor.poll_project_uuid(host, key, new_project_uuid)
+
+        if new_name is not None:
+            r = requests.put(
+                host + API_PROJECT + '/{}'.format(new_project_uuid),
+                data=json.dumps({"name": "%s" % new_name}),
+                headers=headers, verify=verify)
+            if r.status_code != 200:
+                raise AuditorException(f"Cannot rename {new_project_uuid}: {r.status_code} {r.reason}")
+
+        return new_project_uuid
+
+    @staticmethod
+    def clone_project_by_name_version(host, key, old_project_name, old_project_version,
+                           new_version, new_name=None, includeALL=True,
+                           includeACL=None, includeAuditHistory=None,
+                           includeComponents=None, includeProperties=None,
+                           includeServices=None, includeTags=None,
+                           wait=False, verify=True):
+        old_project_version_uuid =\
+            Auditor.get_project_with_version_id(host, key, old_project_name, old_project_version, verify)
+        assert (old_project_version_uuid is not None and old_project_version_uuid != "")
+        return Auditor.clone_project_by_uuid(
+            host, key, old_project_version_uuid,
+            new_version, new_name, includeALL,
+            includeACL, includeAuditHistory,
+            includeComponents, includeProperties,
+            includeServices, includeTags,
+            wait, verify)
+
+    @staticmethod
+    def set_project_active(host, key, project_id, active=True, wait=False, verify=True):
+        payload = {
+            "uuid": project_id,
+            "active": active
+        }
+
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.put(
+            host + API_PROJECT + '/{}'.format(project_id),
+            data=json.dumps(payload), headers=headers, verify=verify)
+        if r.status_code != 200:
+            raise AuditorException(f"Cannot modify project {project_id}: {r.status_code} {r.reason}")
+
+        while wait:
+            objPrj = Auditor.poll_project_uuid(host, key, project_id)
+            if objPrj is not None and active == objPrj.get("active"):
+                wait = False
 
     @staticmethod
     def get_dependencytrack_version(host, key, verify=True):
