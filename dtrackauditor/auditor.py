@@ -179,31 +179,55 @@ class Auditor:
         return response_dict.get('uuid')
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename, auto_create, wait=False, verify=True):
-        print(f"Uploading {filename} ...")
-        filename = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
+    def read_bom_file(filename):
+        """ Read original XML or JSON Bom file and re-encode it to DT server's liking. """
+        print(f"Reading {filename} ...")
+        filenameChecked = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
+        if filenameChecked != filename:
+            print(f"Actually, found it as {filenameChecked} ...")
 
-        if not Path(filename).exists():
-            raise AuditorException(f"{filename} not found !")
+        if not Path(filenameChecked).exists():
+            raise AuditorException(f"{filenameChecked} not found !")
 
-        with open(filename, "r", encoding="utf-8-sig") as bom_file:
+        with open(filenameChecked, "r", encoding="utf-8-sig") as bom_file:
             # Reencode merged BOM file
             # Some tools like 'cyclonedx-cli' generates a file encoded as 'UTF-8 with BOM' (utf-8-sig)
             # which is not supported by dependency track, so we need to convert it as 'UTF-8'.
-            _xml_data = bom_file.read().encode("utf-8")
+            _orig_data = bom_file.read().encode("utf-8")
             # # Encode BOM file into base64 then upload to Dependency Track
-            data = base64.b64encode(_xml_data).decode("utf-8")
-            # _xml_data = bom_file.read()
+            data = base64.b64encode(_orig_data).decode("utf-8")
+            # _orig_data = bom_file.read()
             # # # Encode BOM file into base64 then upload to Dependency Track
-            # data = _xml_data
+            # data = _orig_data
             #print(data)
 
+            return data
+
+        #return None
+
+    @staticmethod
+    def read_upload_bom(host, key, project_name, version, filename, auto_create, project_uuid=None, wait=False, verify=True):
+        data = Auditor.read_bom_file(filename)
+
+        print(f"Uploading {filename} ...")
         payload = {
-            "autoCreate": auto_create,
-            "projectName": project_name,
-            "projectVersion": version,
             "bom": data
         }
+
+        if project_uuid is not None:
+            payload["project"] = project_uuid
+            if auto_create is None:
+                payload["autoCreate"] = False
+
+        if auto_create is not None:
+            payload["autoCreate"] = auto_create
+
+        if project_name is not None:
+            payload["projectName"] = project_name
+
+        if version is not None:
+            payload["projectVersion"] = version
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
