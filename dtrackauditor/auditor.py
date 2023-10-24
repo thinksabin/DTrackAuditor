@@ -52,6 +52,28 @@ class Auditor:
         return json.loads(result.text).get('processing')
 
     @staticmethod
+    def poll_project_uuid(host, key, project_uuid, verify=True):
+        """ Polls server until 'project_uuid' info is received.
+        Checks if that info's 'uuid' matches (fails an assert()
+        otherwise) and returns the object decoded from JSON.
+        """
+        print(f"Waiting for project uuid {project_uuid} to be reported by dt server ...")
+        url = host + API_PROJECT + '/{}'.format(project_uuid)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        result = polling.poll(
+            lambda: requests.get(url, headers=headers, verify=verify),
+            step=5,
+            poll_forever=True,
+            check_success=Auditor.poll_response
+        )
+        resObj = json.loads(result.text)
+        assert (resObj["uuid"] == project_uuid)
+        return resObj
+
+    @staticmethod
     def get_issue_details(component):
         return {
             'cveid': component.get('vulnerability').get('vulnId'),
