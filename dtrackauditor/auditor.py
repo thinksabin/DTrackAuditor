@@ -105,6 +105,37 @@ class Auditor:
         return resObj
 
     @staticmethod
+    def delete_project_uuid(host, key, project_uuid, verify=True):
+        """ Polls server until 'project_uuid' info is received.
+        Checks if that info's 'uuid' matches (fails an assert()
+        otherwise) and returns the object decoded from JSON.
+        """
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"Deleting project uuid {project_uuid} (if present on dt server) ...")
+        url = host + API_PROJECT + '/{}'.format(project_uuid)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        try:
+            result = requests.delete(url, headers=headers, verify=verify)
+        except Exception as ignored:
+            pass
+        result = polling.poll(
+            lambda: requests.get(url, headers=headers, verify=verify),
+            step=5,
+            poll_forever=True,
+            check_success=Auditor.entity_absent
+        )
+
+    @staticmethod
+    def delete_project(host, key, project_name, version, verify=True):
+        project_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify=verify)
+        if project_uuid is None or len(project_uuid) < 1:
+            return
+        Auditor.delete_project_uuid(host, key, project_uuid, verify=verify)
+
+    @staticmethod
     def get_issue_details(component):
         return {
             'cveid': component.get('vulnerability').get('vulnId'),
