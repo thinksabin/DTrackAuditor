@@ -316,6 +316,7 @@ class Auditor:
         # even if they seem to duplicate an existing entity. Project UUID
         # of each instance is what matters. Same-ness of names allows it
         # to group separate versions of the project.
+        # UPDATE: Fixed in DT-4.9.0, see https://github.com/DependencyTrack/dependency-track/issues/2958
         payload = {
             "project":              "%s" % old_project_version_uuid,
             "version":              "%s" % new_version,
