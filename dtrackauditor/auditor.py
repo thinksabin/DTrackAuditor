@@ -30,6 +30,11 @@ class AuditorException(Exception):
         super().__init__(self.message)
 
 class Auditor:
+    DEBUG_VERBOSITY = 3
+    """ Library code is peppered with direct prints for the associated
+    utility; some messages are only shown if Auditor.DEBUG_VERBOSITY
+    is sufficiently high """
+
     @staticmethod
     def poll_response(response):
         status = json.loads(response.text).get('processing')
@@ -42,8 +47,10 @@ class Auditor:
 
     @staticmethod
     def poll_bom_token_being_processed(host, key, bom_token, verify=True):
-        print("Waiting for bom to be processed on dt server ...")
-        print(f"Processing token uuid is {bom_token}")
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print("Waiting for bom to be processed on dt server ...")
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print(f"Processing token uuid is {bom_token}")
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
         headers = {
             "content-type": "application/json",
@@ -63,7 +70,8 @@ class Auditor:
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
         """
-        print(f"Waiting for project uuid {project_uuid} to be reported by dt server ...")
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"Waiting for project uuid {project_uuid} to be reported by dt server ...")
         url = host + API_PROJECT + '/{}'.format(project_uuid)
         headers = {
             "content-type": "application/json",
@@ -96,7 +104,8 @@ class Auditor:
         }
         r = requests.get(url, headers=headers, verify=verify)
         if r.status_code != 200:
-            print(f"Cannot get policy violations: {r.status_code} {r.reason}")
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get policy violations: {r.status_code} {r.reason}")
             return {}
         return json.loads(r.text)
 
@@ -169,7 +178,8 @@ class Auditor:
         }
         r = requests.get(url, headers=headers, verify=verify)
         if r.status_code != 200:
-            print(f"Cannot get project findings: {r.status_code} {r.reason}")
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project findings: {r.status_code} {r.reason}")
             return {}
         return json.loads(r.text)
 
@@ -182,7 +192,8 @@ class Auditor:
         }
         r = requests.get(url, headers=headers, verify=verify)
         if r.status_code != 200:
-            print("Cannot get project without version id: {r.status_code} {r.reason}")
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print("Cannot get project without version id: {r.status_code} {r.reason}")
             return None
         response_dict = json.loads(r.text)
         for project in response_dict:
@@ -201,7 +212,8 @@ class Auditor:
         }
         res = requests.get(url, headers=headers, verify=verify)
         if res.status_code != 200:
-            print(f"Cannot get project id: {res.status_code} {res.reason}")
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project id: {res.status_code} {res.reason}")
             return ""
         response_dict = json.loads(res.text)
         return response_dict.get('uuid')
@@ -209,9 +221,10 @@ class Auditor:
     @staticmethod
     def read_bom_file(filename):
         """ Read original XML or JSON Bom file and re-encode it to DT server's liking. """
-        print(f"Reading {filename} ...")
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"Reading {filename} ...")
         filenameChecked = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
-        if filenameChecked != filename:
+        if filenameChecked != filename and Auditor.DEBUG_VERBOSITY > 2:
             print(f"Actually, found it as {filenameChecked} ...")
 
         if not Path(filenameChecked).exists():
@@ -237,7 +250,8 @@ class Auditor:
     def read_upload_bom(host, key, project_name, version, filename, auto_create, project_uuid=None, wait=False, verify=True):
         data = Auditor.read_bom_file(filename)
 
-        print(f"Uploading {filename} ...")
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"Uploading {filename} ...")
         payload = {
             "bom": data
         }
@@ -277,7 +291,8 @@ class Auditor:
                            includeComponents=None, includeProperties=None,
                            includeServices=None, includeTags=None,
                            wait=False, verify=True):
-        print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
 
         # Note that DT does not constrain the ability to assign arbitrary
         # values (which match the schema) to project name and version -
@@ -299,17 +314,19 @@ class Auditor:
             "X-API-Key": key
         }
         r = requests.put(host + API_PROJECT_CLONE, data=json.dumps(payload), headers=headers, verify=verify)
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print (f"Got response: {r}")
+            print (f"Got text: {r.text}")
         if r.status_code != 200:
             raise AuditorException(f"Cannot clone {old_project_version_uuid}: {r.status_code} {r.reason}")
 
-        print (f"Got response: {r}")
-        print (f"Got text: {r.text}")
         new_project_uuid = json.loads(r.text).get('uuid')
         if new_project_uuid and wait:
             Auditor.poll_project_uuid(host, key, new_project_uuid)
 
         if new_name is not None:
-            print(f"Renaming cloned project+version entity {new_project_uuid} to new name {new_name} with version {new_version}...")
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Renaming cloned project+version entity {new_project_uuid} to new name {new_name} with version {new_version}...")
             r = requests.put(
                 host + API_PROJECT + '/{}'.format(new_project_uuid),
                 data=json.dumps({"name": "%s" % new_name}),
@@ -363,18 +380,22 @@ class Auditor:
 
     @staticmethod
     def get_dependencytrack_version(host, key, verify=True):
-        print("getting version of OWASP DependencyTrack")
-        print(host, key)
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print("getting version of OWASP DependencyTrack")
+            print(host, key)
+
         url = host + API_VERSION
         headers = {
             "content-type": "application/json",
             "X-API-Key": key.strip()
         }
-        print(url)
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(url)
         res = requests.get(url, headers=headers, verify=verify)
         if res.status_code != 200:
             print(f"Cannot connect to the server {res.status_code} {res.reason}")
             return ""
         response_dict = json.loads(res.text)
-        print(response_dict)
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(response_dict)
         return response_dict
