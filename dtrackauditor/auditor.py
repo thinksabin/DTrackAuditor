@@ -37,13 +37,30 @@ class Auditor:
 
     @staticmethod
     def poll_response(response):
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print(f"poll_response(): {response} => {response.status_code} {response.reason} => {response.text}")
+        if response.status_code != 200:
+            return False
         status = json.loads(response.text).get('processing')
-        return status == False
+        return (status == False)
 
     @staticmethod
     def uuid_present(response):
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print(f"uuid_present(): {response} => {response.status_code} {response.reason} => {response.text}")
+        if response.status_code != 200:
+            return False
         uuid = json.loads(response.text).get('uuid')
         return (uuid is not None and len(uuid) > 0)
+
+    @staticmethod
+    def entity_absent(response):
+        """ Returns a success if specifically the request returned HTTP-404 """
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print(f"uuid_present(): {response} => {response.status_code} {response.reason} => {response.text}")
+        if response.status_code == 404:
+            return True
+        return False
 
     @staticmethod
     def poll_bom_token_being_processed(host, key, bom_token, verify=True):
