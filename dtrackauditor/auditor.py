@@ -36,6 +36,11 @@ class Auditor:
         return status == False
 
     @staticmethod
+    def uuid_present(response):
+        uuid = json.loads(response.text).get('uuid')
+        return (uuid is not None and len(uuid) > 0)
+
+    @staticmethod
     def poll_bom_token_being_processed(host, key, bom_token, verify=True):
         print("Waiting for bom to be processed on dt server ...")
         print(f"Processing token uuid is {bom_token}")
@@ -68,7 +73,7 @@ class Auditor:
             lambda: requests.get(url, headers=headers, verify=verify),
             step=5,
             poll_forever=True,
-            check_success=Auditor.poll_response
+            check_success=Auditor.uuid_present
         )
         resObj = json.loads(result.text)
         assert (resObj["uuid"] == project_uuid)
