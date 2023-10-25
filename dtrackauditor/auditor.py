@@ -338,7 +338,12 @@ class Auditor:
         if r.status_code != 200:
             raise AuditorException(f"Cannot clone {old_project_version_uuid}: {r.status_code} {r.reason}")
 
-        new_project_uuid = json.loads(r.text).get('uuid')
+        new_project_uuid = None
+        if r.text is not None:
+            try:
+                new_project_uuid = json.loads(r.text).get('uuid')
+            except Exception as ignored:
+                pass
         if new_project_uuid and wait:
             Auditor.poll_project_uuid(host, key, new_project_uuid)
 
