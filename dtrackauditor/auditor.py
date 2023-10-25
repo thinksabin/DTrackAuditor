@@ -350,7 +350,7 @@ class Auditor:
             "X-API-Key": key
         }
 
-        r = requests.put(
+        r = requests.patch(
             host + API_PROJECT + '/{}'.format(project_id),
             data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
