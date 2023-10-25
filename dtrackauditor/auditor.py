@@ -302,11 +302,14 @@ class Auditor:
         if r.status_code != 200:
             raise AuditorException(f"Cannot clone {old_project_version_uuid}: {r.status_code} {r.reason}")
 
+        print (f"Got response: {r}")
+        print (f"Got text: {r.text}")
         new_project_uuid = json.loads(r.text).get('uuid')
         if new_project_uuid and wait:
             Auditor.poll_project_uuid(host, key, new_project_uuid)
 
         if new_name is not None:
+            print(f"Renaming cloned project+version entity {new_project_uuid} to new name {new_name} with version {new_version}...")
             r = requests.put(
                 host + API_PROJECT + '/{}'.format(new_project_uuid),
                 data=json.dumps({"name": "%s" % new_name}),
@@ -336,6 +339,7 @@ class Auditor:
 
     @staticmethod
     def set_project_active(host, key, project_id, active=True, wait=False, verify=True):
+        """ Requires PORTFOLIO_MANAGEMENT permission. """
         payload = {
             "uuid": project_id,
             "active": active
