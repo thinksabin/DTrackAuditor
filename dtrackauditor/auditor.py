@@ -1,5 +1,6 @@
 import sys
 import json
+import time
 import base64
 import polling
 import requests
@@ -338,7 +339,7 @@ class Auditor:
                            includeACL=None, includeAuditHistory=None,
                            includeComponents=None, includeProperties=None,
                            includeServices=None, includeTags=None,
-                           wait=False, verify=True):
+                           wait=False, verify=True, safeSleep=3):
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
 
@@ -375,6 +376,17 @@ class Auditor:
                 new_project_uuid = json.loads(r.text).get('uuid')
             except Exception as ignored:
                 pass
+
+        # Per dev-testing with DT 4.9.0, clone() takes non-trivial time
+        # on the backend API server even after the UUID is assigned -
+        # some further operations take place. Only when everything is
+        # quiet it is safe to proceed with delete/rename/... operations.
+        # Maybe DT 4.10+ would fix this - in discussion.
+        if safeSleep is not None:
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Sleeping {safeSleep} sec after cloning project {old_project_version_uuid} ...")
+            time.sleep(safeSleep)
+
         if new_project_uuid and wait:
             Auditor.poll_project_uuid(host, key, new_project_uuid)
 
@@ -396,7 +408,7 @@ class Auditor:
                            includeACL=None, includeAuditHistory=None,
                            includeComponents=None, includeProperties=None,
                            includeServices=None, includeTags=None,
-                           wait=False, verify=True):
+                           wait=False, verify=True, safeSleep=3):
         old_project_version_uuid =\
             Auditor.get_project_with_version_id(host, key, old_project_name, old_project_version, verify)
         assert (old_project_version_uuid is not None and old_project_version_uuid != "")
@@ -406,7 +418,7 @@ class Auditor:
             includeACL, includeAuditHistory,
             includeComponents, includeProperties,
             includeServices, includeTags,
-            wait, verify)
+            wait, verify, safeSleep)
 
     @staticmethod
     def set_project_active(host, key, project_id, active=True, wait=False, verify=True):
