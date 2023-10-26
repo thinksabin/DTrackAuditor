@@ -550,6 +550,131 @@ class Auditor:
                 wait = False
 
     @staticmethod
+    def clone_update_project(
+            host, key, filename, new_version,
+            new_name=None,
+            old_project_version_uuid=None,
+            old_project_name=None, old_project_version=None,
+            activate_old=None, activate_new=None,
+            deleteExistingClone=False,
+            includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=True, verify=True, safeSleep=3):
+        """
+        Clones an existing project and uploads a new SBOM document into it, in one swift operation.
+
+        TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get fallback name and/or version.
+        """
+        assert (old_project_version_uuid is not None or
+                (old_project_name is not None and old_project_version is not None))
+
+        # NOTE: name+version are ignored if a UUID is provided
+        if old_project_version_uuid is None:
+            old_project_version_uuid = \
+                Auditor.get_project_with_version_id(host, key, old_project_name, old_project_version, verify)
+
+        assert (old_project_version_uuid is not None and old_project_version_uuid != "")
+        old_project_obj = Auditor.poll_project_uuid(
+            host, key, old_project_version_uuid, wait=wait, verify=verify)
+
+        if new_name is None:
+            new_name = old_project_obj.get("name")
+            if old_project_name is not None and new_name != old_project_name:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print(f"WARNING: caller says old_project_name={old_project_name} but REST API metadata for " +
+                          f"UUID {old_project_version_uuid} says the name is actually {new_name} (using the latter)")
+
+        # Avoid fatal exceptions here, if e.g. old target
+        # clone does not exist and can not be deleted:
+        fatalException = AuditorException.INSTANT_EXIT
+        AuditorException.INSTANT_EXIT = False
+        if deleteExistingClone:
+            try:
+                # NOTE: Here we insist on at least some wait (True or seconds-count)
+                # for completion of the call before proceeding
+                Auditor.delete_project(
+                    host, key, new_name, new_version,
+                    wait=(wait if wait is not None and wait is not False else True),
+                    verify=verify)
+            except Exception as ignored:
+                pass
+
+        # NOTE: Here we insist on at least some wait (True or seconds-count)
+        # for completion of the call before proceeding; defaults to 4 min as
+        # if a TCP timeout.
+        try:
+            new_project_uuid = Auditor.clone_project_by_uuid(
+                host, key, old_project_version_uuid,
+                new_version, new_name, includeALL,
+                includeACL, includeAuditHistory,
+                includeComponents, includeProperties,
+                includeServices, includeTags,
+                wait=(wait if wait is not None and wait is not False else 240),
+                verify=verify, safeSleep=safeSleep)
+        except AuditorRESTAPIException as ex:
+            # Is there a name collision? For example, if we clone a project
+            # (always initially using an old name) and a version intended
+            # for the new name which *also* exists in the original project:
+            if ex.result.status_code != 409 or new_name == old_project_obj.get("name"):
+                # Not a conflict error but something else, or not
+                # avoidable by "cheap tricks" anyway - so rethrow
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Failed to clone: {ex}")
+                raise ex
+
+            # If here: HTTP-409 (Conflict) and different names
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Failed to clone due to version-value conflict, will retry with intermediate random version value: {ex}")
+
+            # Use a somewhat random "version" - plant UUID there temporarily:
+            new_project_uuid = Auditor.clone_project_by_uuid(
+                host, key, old_project_version_uuid,
+                old_project_version_uuid, new_name, includeALL,
+                includeACL, includeAuditHistory,
+                includeComponents, includeProperties,
+                includeServices, includeTags,
+                wait=(wait if wait is not None and wait is not False else 240),
+                verify=verify, safeSleep=safeSleep)
+            headers = {
+                "content-type": "application/json",
+                "X-API-Key": key
+            }
+            r = requests.patch(
+                host + API_PROJECT + '/{}'.format(new_project_uuid),
+                data=json.dumps({"version": "%s" % new_version}),
+                headers=headers, verify=verify)
+            if r.status_code != 200:
+                raise AuditorRESTAPIException(f"Cannot patch {new_project_uuid} version", r)
+
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Completed the workaround with intermediate version value")
+
+        AuditorException.INSTANT_EXIT = fatalException
+
+        assert (new_project_uuid is not None and new_project_uuid != "")
+
+        bom_token = Auditor.read_upload_bom(
+            host, key, project_name=None, version=None,
+            filename=filename, auto_create=False, project_uuid=new_project_uuid,
+            wait=wait, verify=verify)
+
+        assert (bom_token is not None and bom_token != "")
+
+        if activate_old is not None:
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print("%sctivating original project %s ..." % ("A" if activate_old else "Dea", old_project_version_uuid))
+            Auditor.set_project_active(host, key, old_project_version_uuid, activate_old, wait=wait, verify=verify)
+
+        if activate_new is not None:
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print("%sctivating cloned project %s ..." % ("A" if activate_new else "Dea", new_project_uuid))
+            Auditor.set_project_active(host, key, new_project_uuid, activate_new, wait=wait, verify=verify)
+
+        return new_project_uuid
+
+    @staticmethod
     def get_dependencytrack_version(host, key, verify=True):
         if Auditor.DEBUG_VERBOSITY > 2:
             print("getting version of OWASP DependencyTrack")
