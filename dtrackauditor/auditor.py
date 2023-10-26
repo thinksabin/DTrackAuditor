@@ -22,12 +22,16 @@ class AuditorException(Exception):
     """ Instead of raising an exception that may be caught by code,
     print the message and exit (legacy behavior for the CLI tool) """
 
-    def __init__(self, message = "Dependency-Track Auditor did not pass a test"):
+    def __init__(self, message = "Dependency-Track Auditor did not pass a test", result = None):
         if AuditorException.INSTANT_EXIT:
             print(message)
             sys.exit(1)
 
         self.message = message
+
+        self.result = result
+        """ Result of an HTTP query which caused the exception, if any """
+
         super().__init__(self.message)
 
 class Auditor:
