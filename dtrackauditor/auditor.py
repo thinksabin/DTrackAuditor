@@ -106,7 +106,7 @@ class Auditor:
         return resObj
 
     @staticmethod
-    def delete_project_uuid(host, key, project_uuid, verify=True):
+    def delete_project_uuid(host, key, project_uuid, verify=True, wait=True):
         """ Polls server until 'project_uuid' info is received.
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
@@ -120,21 +120,43 @@ class Auditor:
         }
         try:
             result = requests.delete(url, headers=headers, verify=verify)
-        except Exception as ignored:
+        except Exception as ex:
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Deletion request for project uuid {project_uuid} failed: {ex}")
             pass
-        result = polling.poll(
-            lambda: requests.get(url, headers=headers, verify=verify),
-            step=5,
-            poll_forever=True,
-            check_success=Auditor.entity_absent
-        )
+
+        if result is not None:
+            if 200 <= result.status_code < 300:
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Deletion request for project uuid {project_uuid} succeeded: {result.status_code} {result.reason} => {result.text}")
+            elif result.status_code == 404:
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Deletion request for project uuid {project_uuid} was gratuitous (no such object already): {result.status_code} {result.reason} => {result.text}")
+                return
+            else:
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Deletion request for project uuid {project_uuid} failed: {result.status_code} {result.reason} => {result.text}")
+
+        if wait:
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Checking after deletion request for project uuid {project_uuid} ...")
+                print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
+                print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+
+            result = polling.poll(
+                lambda: requests.get(url, headers=headers, verify=verify),
+                step=5,
+                poll_forever=(wait if isinstance(wait, bool) else False),
+                timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
+                check_success=Auditor.entity_absent
+            )
 
     @staticmethod
-    def delete_project(host, key, project_name, version, verify=True):
+    def delete_project(host, key, project_name, version, verify=True, wait=True):
         project_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify=verify)
         if project_uuid is None or len(project_uuid) < 1:
             return
-        Auditor.delete_project_uuid(host, key, project_uuid, verify=verify)
+        Auditor.delete_project_uuid(host, key, project_uuid, verify=verify, wait=wait)
 
     @staticmethod
     def get_issue_details(component):
