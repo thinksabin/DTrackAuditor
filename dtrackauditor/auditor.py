@@ -46,6 +46,18 @@ class AuditorRESTAPIException(AuditorException):
 
         super().__init__(message)
 
+    def __str__(self):
+        s = f"${self.message}"
+        if self.result is not None:
+            s += ": {result.status_code} {result.reason}"
+            if self.result.text is None or len(self.result.text) == 0:
+                s += " <empty response content>"
+            elif len(self.result.text) < 128:
+                s += f" => {self.result.text}"
+            else:
+                s += f" <response content length is {len(self.result.text)}>"
+        return s
+
 class Auditor:
     DEBUG_VERBOSITY = 3
     """ Library code is peppered with direct prints for the associated
