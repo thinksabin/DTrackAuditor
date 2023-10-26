@@ -561,7 +561,11 @@ class Auditor:
             host + API_PROJECT + '/{}'.format(project_id),
             data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
-            raise AuditorRESTAPIException(f"Cannot modify project {project_id}", r)
+            if r.status_code == 304:
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Not changing 'active' status of project to '{active}': it is same as before")
+            else:
+                raise AuditorRESTAPIException(f"Cannot modify project {project_id}", r)
 
         while wait:
             objPrj = Auditor.poll_project_uuid(host, key, project_id, wait=wait, verify=verify)
