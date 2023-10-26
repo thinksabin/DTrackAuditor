@@ -97,7 +97,7 @@ class Auditor:
         return False
 
     @staticmethod
-    def poll_bom_token_being_processed(host, key, bom_token, verify=True):
+    def poll_bom_token_being_processed(host, key, bom_token, wait=True, verify=True):
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for bom to be processed on dt server ...")
         if Auditor.DEBUG_VERBOSITY > 3:
@@ -110,13 +110,14 @@ class Auditor:
         result = polling.poll(
             lambda: requests.get(url, headers=headers, verify=verify),
             step=5,
-            poll_forever=True,
+            poll_forever=(wait if isinstance(wait, bool) else False),
+            timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
             check_success=Auditor.poll_response
         )
         return json.loads(result.text).get('processing')
 
     @staticmethod
-    def poll_project_uuid(host, key, project_uuid, verify=True):
+    def poll_project_uuid(host, key, project_uuid, wait=True, verify=True):
         """ Polls server until 'project_uuid' info is received.
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
@@ -131,7 +132,8 @@ class Auditor:
         result = polling.poll(
             lambda: requests.get(url, headers=headers, verify=verify),
             step=5,
-            poll_forever=True,
+            poll_forever=(wait if isinstance(wait, bool) else False),
+            timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
             check_success=Auditor.uuid_present
         )
         resObj = json.loads(result.text)
@@ -139,7 +141,7 @@ class Auditor:
         return resObj
 
     @staticmethod
-    def delete_project_uuid(host, key, project_uuid, verify=True, wait=True):
+    def delete_project_uuid(host, key, project_uuid, wait=True, verify=True):
         """ Polls server until 'project_uuid' info is received.
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
@@ -188,7 +190,7 @@ class Auditor:
                 print(f"OK project uuid {project_uuid} seems deleted")
 
     @staticmethod
-    def delete_project(host, key, project_name, version, verify=True, wait=True):
+    def delete_project(host, key, project_name, version, wait=True, verify=True):
         if Auditor.DEBUG_VERBOSITY > 3:
             # Found UUID (if any) will be reported by the called method
             print(f"Querying for UUID of project to delete ('{project_name}' '{version}')...")
@@ -197,7 +199,7 @@ class Auditor:
             if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"UUID of project to delete not found")
             return
-        Auditor.delete_project_uuid(host, key, project_uuid, verify=verify, wait=wait)
+        Auditor.delete_project_uuid(host, key, project_uuid, wait=wait, verify=verify)
 
     @staticmethod
     def get_issue_details(component):
@@ -396,7 +398,7 @@ class Auditor:
 
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
-            Auditor.poll_bom_token_being_processed(host, key, bom_token)
+            Auditor.poll_bom_token_being_processed(host, key, bom_token, wait=wait, verify=verify)
 
         return bom_token
 
@@ -469,7 +471,8 @@ class Auditor:
                 print(f"Querying known projects to identify the new clone ...")
             try:
                 # First get details (e.g. name) of the old project we cloned from:
-                old_project_obj = Auditor.poll_project_uuid(host, key, old_project_version_uuid, verify=verify)
+                old_project_obj = Auditor.poll_project_uuid(
+                    host, key, old_project_version_uuid, wait=wait, verify=verify)
                 if old_project_obj is None or not isinstance(old_project_obj, dict):
                     if Auditor.DEBUG_VERBOSITY > 2:
                         print(f"Failed to query the old project details")
@@ -488,7 +491,7 @@ class Auditor:
                 pass
 
         if new_project_uuid is not None and wait:
-            Auditor.poll_project_uuid(host, key, new_project_uuid)
+            Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
 
         if new_name is not None:
             if new_project_uuid is None:
@@ -542,7 +545,7 @@ class Auditor:
             raise AuditorRESTAPIException(f"Cannot modify project {project_id}", r)
 
         while wait:
-            objPrj = Auditor.poll_project_uuid(host, key, project_id)
+            objPrj = Auditor.poll_project_uuid(host, key, project_id, wait=wait, verify=verify)
             if objPrj is not None and active == objPrj.get("active"):
                 wait = False
 
