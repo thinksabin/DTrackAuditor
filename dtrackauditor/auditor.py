@@ -184,11 +184,18 @@ class Auditor:
                 timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
                 check_success=Auditor.entity_absent
             )
+            if Auditor.DEBUG_VERBOSITY > 3:
+                print(f"OK project uuid {project_uuid} seems deleted")
 
     @staticmethod
     def delete_project(host, key, project_name, version, verify=True, wait=True):
+        if Auditor.DEBUG_VERBOSITY > 3:
+            # Found UUID (if any) will be reported by the called method
+            print(f"Querying for UUID of project to delete ('{project_name}' '{version}')...")
         project_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify=verify)
         if project_uuid is None or len(project_uuid) < 1:
+            if Auditor.DEBUG_VERBOSITY > 3:
+                print(f"UUID of project to delete not found")
             return
         Auditor.delete_project_uuid(host, key, project_uuid, verify=verify, wait=wait)
 
