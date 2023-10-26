@@ -409,10 +409,12 @@ class Auditor:
                 print(f"Sleeping {safeSleep} sec after cloning project {old_project_version_uuid} ...")
             time.sleep(safeSleep)
 
-        if new_project_uuid and wait:
+        if new_project_uuid is not None and wait:
             Auditor.poll_project_uuid(host, key, new_project_uuid)
 
         if new_name is not None:
+            if new_project_uuid is None:
+                raise AuditorException(f"Cannot rename cloned project: new UUID not discovered yet")
             if Auditor.DEBUG_VERBOSITY > 2:
                 print(f"Renaming cloned project+version entity {new_project_uuid} to new name {new_name} with version {new_version}...")
             r = requests.put(
