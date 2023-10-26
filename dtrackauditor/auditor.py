@@ -164,6 +164,7 @@ class Auditor:
             else:
                 if Auditor.DEBUG_VERBOSITY > 2:
                     print(f"Deletion request for project uuid {project_uuid} failed: {result.status_code} {result.reason} => {result.text}")
+                # TODO? raise AuditorRESTAPIException(f"Deletion request for project uuid {project_uuid} failed, r)
 
         if wait:
             if Auditor.DEBUG_VERBOSITY > 2:
@@ -205,6 +206,7 @@ class Auditor:
         if r.status_code != 200:
             if Auditor.DEBUG_VERBOSITY > 0:
                 print(f"Cannot get policy violations: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get policy violations", r)
             return {}
         return json.loads(r.text)
 
@@ -279,6 +281,7 @@ class Auditor:
         if r.status_code != 200:
             if Auditor.DEBUG_VERBOSITY > 0:
                 print(f"Cannot get project findings: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get project findings", r)
             return {}
         return json.loads(r.text)
 
@@ -293,6 +296,7 @@ class Auditor:
         if r.status_code != 200:
             if Auditor.DEBUG_VERBOSITY > 0:
                 print("Cannot get project without version id: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get project without version id", r)
             return None
         response_dict = json.loads(r.text)
         for project in response_dict:
@@ -313,6 +317,7 @@ class Auditor:
         if res.status_code != 200:
             if Auditor.DEBUG_VERBOSITY > 0:
                 print(f"Cannot get project id: {res.status_code} {res.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get project id", res)
             return ""
         response_dict = json.loads(res.text)
         return response_dict.get('uuid')
@@ -375,7 +380,7 @@ class Auditor:
         }
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
-            raise AuditorException(f"Cannot upload {filename}: {r.status_code} {r.reason}")
+            raise AuditorRESTAPIException(f"Cannot upload {filename}", r)
 
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
@@ -473,7 +478,7 @@ class Auditor:
                 data=json.dumps({"name": "%s" % new_name}),
                 headers=headers, verify=verify)
             if r.status_code != 200:
-                raise AuditorException(f"Cannot rename {new_project_uuid}: {r.status_code} {r.reason}")
+                raise AuditorRESTAPIException(f"Cannot rename {new_project_uuid}", r)
 
         return new_project_uuid
 
@@ -512,7 +517,7 @@ class Auditor:
             host + API_PROJECT + '/{}'.format(project_id),
             data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
-            raise AuditorException(f"Cannot modify project {project_id}: {r.status_code} {r.reason}")
+            raise AuditorRESTAPIException(f"Cannot modify project {project_id}", r)
 
         while wait:
             objPrj = Auditor.poll_project_uuid(host, key, project_id)
@@ -535,6 +540,7 @@ class Auditor:
         res = requests.get(url, headers=headers, verify=verify)
         if res.status_code != 200:
             print(f"Cannot connect to the server {res.status_code} {res.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot connect to the server", res)
             return ""
         response_dict = json.loads(res.text)
         if Auditor.DEBUG_VERBOSITY > 2:
