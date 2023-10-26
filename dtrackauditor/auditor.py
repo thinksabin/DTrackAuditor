@@ -423,7 +423,17 @@ class Auditor:
             print (f"Got response: {r}")
             print (f"Got text: {r.text}")
         if r.status_code != 200:
-            raise AuditorException(f"Cannot clone {old_project_version_uuid}: {r.status_code} {r.reason}")
+            if r.status_code > 500:
+                if Auditor.DEBUG_VERBOSITY > 3:
+                    print (f"Will wait and retry: {r}")
+                time.sleep(5)
+                r = requests.put(host + API_PROJECT_CLONE, data=json.dumps(payload), headers=headers, verify=verify)
+                if Auditor.DEBUG_VERBOSITY > 3:
+                    print (f"Got response: {r}")
+                    print (f"Got text: {r.text}")
+
+            if r.status_code != 200:
+                raise AuditorRESTAPIException(f"Cannot clone {old_project_version_uuid}", r)
 
         new_project_uuid = None
         if r.text is not None:
