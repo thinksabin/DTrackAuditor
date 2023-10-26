@@ -409,6 +409,29 @@ class Auditor:
                 print(f"Sleeping {safeSleep} sec after cloning project {old_project_version_uuid} ...")
             time.sleep(safeSleep)
 
+        if new_project_uuid is None:
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Querying known projects to identify the new clone ...")
+            try:
+                # First get details (e.g. name) of the old project we cloned from:
+                old_project_obj = Auditor.poll_project_uuid(host, key, old_project_version_uuid, verify=verify)
+                if old_project_obj is None or not isinstance(old_project_obj, dict):
+                    if Auditor.DEBUG_VERBOSITY > 2:
+                        print(f"Failed to query the old project details")
+                else:
+                    new_project_uuid = Auditor.get_project_with_version_id(
+                        host, key, old_project_obj.get("name"), new_version, verify=verify)
+                    if new_project_uuid is not None:
+                        if Auditor.DEBUG_VERBOSITY > 2:
+                            print("Query identified the new clone of %s ('%s' version '%s' => '%s') as %s" % (
+                                old_project_version_uuid,
+                                old_project_obj.get("name"), old_project_obj.get("version"),
+                                new_version, new_project_uuid))
+            except Exception as ex:
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Failed to query known projects to identify the new clone: {ex}")
+                pass
+
         if new_project_uuid is not None and wait:
             Auditor.poll_project_uuid(host, key, new_project_uuid)
 
