@@ -24,7 +24,7 @@ class AuditorException(Exception):
 
     def __init__(self, message = "Dependency-Track Auditor did not pass a test"):
         if AuditorException.INSTANT_EXIT:
-            print(message)
+            print("AuditorException.INSTANT_EXIT: " + message)
             sys.exit(1)
 
         self.message = message
@@ -36,9 +36,7 @@ class AuditorRESTAPIException(AuditorException):
 
     def __init__(self, message = "Dependency-Track Auditor had a REST API unexpected situation", result = None):
         if AuditorException.INSTANT_EXIT:
-            print(message)
-            if result is not None:
-                print(f"HTTP Result: {result.status_code} {result.reason}")
+            print("AuditorRESTAPIException.INSTANT_EXIT: " + AuditorRESTAPIException.stringify(message, result))
             sys.exit(1)
 
         self.result = result
@@ -46,17 +44,24 @@ class AuditorRESTAPIException(AuditorException):
 
         super().__init__(message)
 
-    def __str__(self):
-        s = f"${self.message}"
-        if self.result is not None:
-            s += ": {result.status_code} {result.reason}"
-            if self.result.text is None or len(self.result.text) == 0:
-                s += " <empty response content>"
-            elif len(self.result.text) < 128:
-                s += f" => {self.result.text}"
-            else:
-                s += f" <response content length is {len(self.result.text)}>"
+    @staticmethod
+    def stringify(message, result):
+        s = f"{message}"
+        try:
+            if result is not None:
+                s += f": HTTP-{result.status_code} {result.reason}"
+                if result.text is None or len(result.text) == 0:
+                    s += " <empty response content>"
+                elif len(result.text) < 128:
+                    s += f" => {result.text}"
+                else:
+                    s += f" <response content length is {len(result.text)}>"
+        except Exception as ignored:
+            pass
         return s
+
+    def __str__(self):
+        return AuditorRESTAPIException.stringify(self.message, self.result)
 
 class Auditor:
     DEBUG_VERBOSITY = 3
