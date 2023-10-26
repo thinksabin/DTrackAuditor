@@ -22,17 +22,29 @@ class AuditorException(Exception):
     """ Instead of raising an exception that may be caught by code,
     print the message and exit (legacy behavior for the CLI tool) """
 
-    def __init__(self, message = "Dependency-Track Auditor did not pass a test", result = None):
+    def __init__(self, message = "Dependency-Track Auditor did not pass a test"):
         if AuditorException.INSTANT_EXIT:
             print(message)
             sys.exit(1)
 
         self.message = message
 
+        super().__init__(self.message)
+
+class AuditorRESTAPIException(AuditorException):
+    """ Dependency-Track Auditor had a run-time error specifically due to REST API unexpected situation """
+
+    def __init__(self, message = "Dependency-Track Auditor had a REST API unexpected situation", result = None):
+        if AuditorException.INSTANT_EXIT:
+            print(message)
+            if result is not None:
+                print(f"HTTP Result: {result.status_code} {result.reason}")
+            sys.exit(1)
+
         self.result = result
         """ Result of an HTTP query which caused the exception, if any """
 
-        super().__init__(self.message)
+        super().__init__(message)
 
 class Auditor:
     DEBUG_VERBOSITY = 3
