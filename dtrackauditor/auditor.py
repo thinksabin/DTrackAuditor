@@ -107,13 +107,20 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        result = polling.poll(
-            lambda: requests.get(url, headers=headers, verify=verify),
-            step=5,
-            poll_forever=(wait if isinstance(wait, bool) else False),
-            timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-            check_success=Auditor.poll_response
-        )
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
+            print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+        # NOTE: poll_forever!=False, ever!
+        if wait:
+            result = polling.poll(
+                lambda: requests.get(url, headers=headers, verify=verify),
+                step=5,
+                poll_forever=(wait if isinstance(wait, bool) else None),
+                timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
+                check_success=Auditor.poll_response
+            )
+        else:
+            result = requests.get(url, headers=headers, verify=verify)
         return json.loads(result.text).get('processing')
 
     @staticmethod
@@ -129,13 +136,20 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        result = polling.poll(
-            lambda: requests.get(url, headers=headers, verify=verify),
-            step=5,
-            poll_forever=(wait if isinstance(wait, bool) else False),
-            timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-            check_success=Auditor.uuid_present
-        )
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
+            print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+        # NOTE: poll_forever!=False, ever!
+        if wait:
+            result = polling.poll(
+                lambda: requests.get(url, headers=headers, verify=verify),
+                step=5,
+                poll_forever=(wait if isinstance(wait, bool) else None),
+                timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
+                check_success=Auditor.uuid_present
+            )
+        else:
+            result = requests.get(url, headers=headers, verify=verify)
         resObj = json.loads(result.text)
         assert (resObj["uuid"] == project_uuid)
         return resObj
