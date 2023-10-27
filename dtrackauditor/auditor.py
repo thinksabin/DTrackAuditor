@@ -389,7 +389,7 @@ class Auditor:
             return None
         except AuditorRESTAPIException as ex:
             if Auditor.DEBUG_VERBOSITY > 0:
-                print(f"Cannot get project without version id: {ex.result.status_code} {ex.result.reason}")
+                print(f"Cannot get project '{project_name}' '{version}' without version id: {ex.result.status_code} {ex.result.reason}")
             # TODO? raise AuditorRESTAPIException("Cannot get project without version id", r)
             return ""
 
@@ -416,7 +416,7 @@ class Auditor:
         res = requests.get(url, headers=headers, verify=verify)
         if res.status_code != 200:
             if Auditor.DEBUG_VERBOSITY > 0:
-                print(f"Cannot get project id: {res.status_code} {res.reason}")
+                print(f"Cannot get project '{project_name}' '{version}' id: {res.status_code} {res.reason}")
             # TODO? raise AuditorRESTAPIException("Cannot get project id", res)
             return ""
         response_dict = json.loads(res.text)
