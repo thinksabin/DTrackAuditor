@@ -314,7 +314,9 @@ class Auditor:
         return json.loads(r.text)
 
     @staticmethod
-    def get_project_without_version_id(host, key, project_name, version, verify=True):
+    def get_project_list(host, key, verify=True):
+        """ Return a dictionary with all known projects, or raise exceptions
+        upon errors. """
         url = host + API_PROJECT
         headers = {
             "content-type": "application/json",
@@ -322,18 +324,42 @@ class Auditor:
         }
         r = requests.get(url, headers=headers, verify=verify)
         if r.status_code != 200:
-            if Auditor.DEBUG_VERBOSITY > 0:
-                print("Cannot get project without version id: {r.status_code} {r.reason}")
-            # TODO? raise AuditorRESTAPIException("Cannot get project without version id", r)
+            raise AuditorRESTAPIException("Cannot get project list", r)
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_project_without_version_id(host, key, project_name, version, verify=True):
+        """ Look up a particular project instance by name and version,
+        querying for a list of all projects and filtering that.
+
+        Returns project UUID or "" upon REST API request HTTP
+        error states (may raise exceptions on other types of errors)
+        or None if nothing was found (without errors).
+
+        Please see whether the get_project_with_version_id() method
+        works for you instead (should be less expensive computationally).
+        """
+        try:
+            response_dict = Auditor.get_project_list(host, key, verify=verify)
+            for project in response_dict:
+                if project_name == project.get('name') and project.get('version') == version:
+                    _project_id = project.get('uuid')
+                    return _project_id
             return None
-        response_dict = json.loads(r.text)
-        for project in response_dict:
-            if project_name == project.get('name') and project.get('version') == version:
-                _project_id = project.get('uuid')
-                return _project_id
+        except AuditorRESTAPIException as ex:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project without version id: {ex.result.status_code} {ex.result.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get project without version id", r)
+            return ""
 
     @staticmethod
     def get_project_with_version_id(host, key, project_name, version, verify=True):
+        """ Look up a particular project instance by name and version,
+        using a dedicated REST API call for that purpose.
+
+        Returns project UUID or "" empty string upon REST API request
+        HTTP error states (may raise exceptions on other types of errors).
+        """
         project_name = project_name
         version = version
         url = host + API_PROJECT_LOOKUP + '?name={}&version={}'.format(project_name, version)
