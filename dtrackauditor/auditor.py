@@ -98,6 +98,10 @@ class Auditor:
 
     @staticmethod
     def poll_bom_token_being_processed(host, key, bom_token, wait=True, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (bom is not None and bom != "")
+
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for bom to be processed on dt server ...")
         if Auditor.DEBUG_VERBOSITY > 3:
@@ -129,6 +133,10 @@ class Auditor:
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
         """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_uuid is not None and project_uuid != "")
+
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Waiting for project uuid {project_uuid} to be reported by dt server ...")
         url = host + API_PROJECT + '/{}'.format(project_uuid)
@@ -160,6 +168,10 @@ class Auditor:
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
         """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_uuid is not None and project_uuid != "")
+
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Deleting project uuid {project_uuid} (if present on dt server) ...")
         url = host + API_PROJECT + '/{}'.format(project_uuid)
@@ -205,6 +217,11 @@ class Auditor:
 
     @staticmethod
     def delete_project(host, key, project_name, version, wait=True, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_name is not None and project_name != "")
+        assert (version is not None and version != "")
+
         if Auditor.DEBUG_VERBOSITY > 3:
             # Found UUID (if any) will be reported by the called method
             print(f"Querying for UUID of project to delete ('{project_name}' '{version}')...")
@@ -225,6 +242,10 @@ class Auditor:
 
     @staticmethod
     def get_project_policy_violations(host, key, project_id, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
         url = host + API_POLICY_VIOLATIONS % project_id
         headers = {
             "content-type": "application/json",
@@ -240,6 +261,10 @@ class Auditor:
 
     @staticmethod
     def check_vulnerabilities(host, key, project_uuid, rules, show_details, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_uuid is not None and project_uuid != "")
+
         project_findings = Auditor.get_project_findings(host, key, project_uuid, verify=verify)
         severity_scores = Auditor.get_project_finding_severity(project_findings)
         print(severity_scores)
@@ -268,6 +293,10 @@ class Auditor:
 
     @staticmethod
     def check_policy_violations(host, key, project_uuid, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_uuid is not None and project_uuid != "")
+
         policy_violations = Auditor.get_project_policy_violations(host, key, project_uuid, verify=verify)
         if not isinstance(policy_violations, list):
             raise AuditorException("Invalid response when fetching policy violations.")
@@ -300,6 +329,10 @@ class Auditor:
 
     @staticmethod
     def get_project_findings(host, key, project_id, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
         url = host + API_PROJECT_FINDING + '/{}'.format(project_id)
         headers = {
             "content-type": "application/json",
@@ -317,6 +350,9 @@ class Auditor:
     def get_project_list(host, key, verify=True):
         """ Return a dictionary with all known projects, or raise exceptions
         upon errors. """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+
         url = host + API_PROJECT
         headers = {
             "content-type": "application/json",
@@ -339,6 +375,11 @@ class Auditor:
         Please see whether the get_project_with_version_id() method
         works for you instead (should be less expensive computationally).
         """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_name is not None and project_name != "")
+        assert (version is not None and version != "")
+
         try:
             response_dict = Auditor.get_project_list(host, key, verify=verify)
             for project in response_dict:
@@ -360,6 +401,11 @@ class Auditor:
         Returns project UUID or "" empty string upon REST API request
         HTTP error states (may raise exceptions on other types of errors).
         """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_name is not None and project_name != "")
+        assert (version is not None and version != "")
+
         project_name = project_name
         version = version
         url = host + API_PROJECT_LOOKUP + '?name={}&version={}'.format(project_name, version)
@@ -379,6 +425,8 @@ class Auditor:
     @staticmethod
     def read_bom_file(filename):
         """ Read original XML or JSON Bom file and re-encode it to DT server's liking. """
+        assert (filename is not None and filename != "")
+
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Reading {filename} ...")
         filenameChecked = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
@@ -406,6 +454,14 @@ class Auditor:
 
     @staticmethod
     def read_upload_bom(host, key, project_name, version, filename, auto_create, project_uuid=None, wait=False, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (
+            (project_name is not None and project_name != "" and
+             version is not None and version != "") or
+            (project_uuid is not None and project_uuid != ""))
+        assert (filename is not None and filename != "")
+
         data = Auditor.read_bom_file(filename)
 
         if Auditor.DEBUG_VERBOSITY > 2:
@@ -449,6 +505,11 @@ class Auditor:
                            includeComponents=None, includeProperties=None,
                            includeServices=None, includeTags=None,
                            wait=False, verify=True, safeSleep=3):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (old_project_version_uuid is not None and old_project_version_uuid != "")
+        assert (new_version is not None and new_version != "")
+
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
 
@@ -507,7 +568,7 @@ class Auditor:
             time.sleep(safeSleep)
 
         old_project_obj = None
-        if new_project_uuid is None:
+        if new_project_uuid is None or new_project_uuid == "":
             if Auditor.DEBUG_VERBOSITY > 2:
                 print(f"Querying known projects to identify the new clone ...")
             try:
@@ -520,7 +581,7 @@ class Auditor:
                 else:
                     new_project_uuid = Auditor.get_project_with_version_id(
                         host, key, old_project_obj.get("name"), new_version, verify=verify)
-                    if new_project_uuid is not None:
+                    if new_project_uuid is not None and len(new_project_uuid) > 0:
                         if Auditor.DEBUG_VERBOSITY > 2:
                             print("Query identified the new clone of %s ('%s' version '%s' => '%s') as %s" % (
                                 old_project_version_uuid,
@@ -531,10 +592,10 @@ class Auditor:
                     print(f"Failed to query known projects to identify the new clone: {ex}")
                 pass
 
-        if new_project_uuid is not None and wait:
+        if new_project_uuid is not None and len(new_project_uuid) > 0 and wait:
             Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
 
-        if new_name is not None and (old_project_obj is None or old_project_obj.get("name") != new_name):
+        if new_name is not None and len(new_name) > 0 and (old_project_obj is None or old_project_obj.get("name") != new_name):
             if new_project_uuid is None:
                 raise AuditorException(f"Cannot rename cloned project: new UUID not discovered yet")
             if Auditor.DEBUG_VERBOSITY > 2:
@@ -559,6 +620,12 @@ class Auditor:
                            includeComponents=None, includeProperties=None,
                            includeServices=None, includeTags=None,
                            wait=False, verify=True, safeSleep=3):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (old_project_name is not None and old_project_name != "")
+        assert (old_project_version is not None and old_project_version != "")
+        assert (new_version is not None and new_version != "")
+
         old_project_version_uuid =\
             Auditor.get_project_with_version_id(host, key, old_project_name, old_project_version, verify)
         assert (old_project_version_uuid is not None and old_project_version_uuid != "")
@@ -573,6 +640,10 @@ class Auditor:
     @staticmethod
     def set_project_active(host, key, project_id, active=True, wait=False, verify=True):
         """ Requires PORTFOLIO_MANAGEMENT permission. """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
         payload = {
             "uuid": project_id,
             "active": active
@@ -616,8 +687,13 @@ class Auditor:
 
         TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get fallback name and/or version.
         """
-        assert (old_project_version_uuid is not None or
-                (old_project_name is not None and old_project_version is not None))
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert ((old_project_version_uuid is not None and old_project_version_uuid != "") or
+                (old_project_name is not None and old_project_version is not None and
+                 old_project_name != "" and old_project_version != ""
+                 ))
+        assert (filename is not None and filename != "")
 
         # NOTE: name+version are ignored if a UUID is provided
         if old_project_version_uuid is None:
@@ -725,6 +801,9 @@ class Auditor:
 
     @staticmethod
     def get_dependencytrack_version(host, key, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+
         if Auditor.DEBUG_VERBOSITY > 2:
             print("getting version of OWASP DependencyTrack")
             print(host, key)
