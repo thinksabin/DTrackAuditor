@@ -45,14 +45,14 @@ class AuditorRESTAPIException(AuditorException):
         super().__init__(message)
 
     @staticmethod
-    def stringify(message, result):
+    def stringify(message, result, showFullResultText = False):
         s = f"{message}"
         try:
             if result is not None:
                 s += f": HTTP-{result.status_code} {result.reason}"
                 if result.text is None or len(result.text) == 0:
                     s += " <empty response content>"
-                elif len(result.text) < 128:
+                elif len(result.text) < 128 or showFullResultText:
                     s += f" => {result.text}"
                 else:
                     s += f" <response content length is {len(result.text)}>"
