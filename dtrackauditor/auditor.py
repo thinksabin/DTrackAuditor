@@ -72,7 +72,7 @@ class Auditor:
     @staticmethod
     def poll_response(response):
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(f"poll_response(): {response} => {response.status_code} {response.reason} => {response.text}")
+            print(AuditorRESTAPIException.stringify("poll_response()", response))
         if response.status_code != 200:
             return False
         status = json.loads(response.text).get('processing')
@@ -81,7 +81,7 @@ class Auditor:
     @staticmethod
     def uuid_present(response):
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(f"uuid_present(): {response} => {response.status_code} {response.reason} => {response.text}")
+            print(AuditorRESTAPIException.stringify("uuid_present()", response))
         if response.status_code != 200:
             return False
         uuid = json.loads(response.text).get('uuid')
@@ -91,7 +91,7 @@ class Auditor:
     def entity_absent(response):
         """ Returns a success if specifically the request returned HTTP-404 """
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(f"uuid_present(): {response} => {response.status_code} {response.reason} => {response.text}")
+            print(AuditorRESTAPIException.stringify("entity_absent()", response))
         if response.status_code == 404:
             return True
         return False
