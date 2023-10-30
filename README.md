@@ -3,8 +3,9 @@
 DTrackAuditor is the python script to facilitate usage of [DependencyTrack](https://dependencytrack.org/) in the CI, optionally failing the build based on different parameters.
 
 # Development and Tests
-python 3.10.6
-DependencyTrack 4.7
+
+* python 3.10.6
+* DependencyTrack 4.7
 
 ### Features  
 
@@ -16,24 +17,28 @@ DependencyTrack 4.7
 6. Return 0 or 1 exit status for Auto mode.
 
 ### Quick Install
+
+* Pypi
 ```
-Pypi
 thinksabin@DESKTOP:~$ pip install dtrack-auditor
 thinksabin@DESKTOP:~$ dtrackauditor
+```
     
-Docker image
+* Docker image
+```
 docker pull thinksabin/dtrackauditor:latest
+```
 
-Git
+* Git
+```
 git clone https://github.com/thinksabin/DTrackAuditor.git
 ```
-Note: if you are doing git clone and executing dtrackauditor.py then do correct the import of Auditor or
-place the dtrackauditor.py file outside dtrackauditor folder. Let me know if there is proper way to handle this. :)
 
 ### Usage
 
 #### Basic Usage
 
+* As a script:
 ```
 python3 dtrackauditor.py \
     -u 'http://mydtrack.local:8080' \
@@ -42,14 +47,25 @@ python3 dtrackauditor.py \
     -f myweb/target/bom.xml \
     -a
 ```
-```
-docker run --rm -v $PWD:/tmp thinksabin/dtrackauditor -- required parameters as examples
-```
-
-If environment variable for `DTRACK_SERVER` and `DTRACK_API_KEY` are present then the usage can be direct.
+If environment variable for `DTRACK_SERVER` and `DTRACK_API_KEY` are present then the usage can be direct:
 
 ```
 python3 dtrackauditor.py  -p myweb -v 1.0.0 -a
+```
+
+If your DependencyTrack server is exposed through an HTTPS listener (e.g.
+using an nginx or apache web-server as a reverse proxy for the UI and API
+servers), and if this setup uses self-signed certificates or those issued by
+a private (corporate) Certificate Authority, you may benefit from passing
+a path to PEM file with the trust chain using `DTRACK_SERVER_CERTCHAIN`
+environment variable or the `-C`/`--certchain` command-line argument.
+Such argument may also be `none` to trust any HTTPS server blindly.
+
+* As a Docker container:
+```
+docker run --rm -v $PWD:/tmp \
+    thinksabin/dtrackauditor -- \
+    required parameters as examples
 ```
 
 #### Vulnerability Rules
