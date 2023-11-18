@@ -38,6 +38,12 @@ def parse_cmd_args():
                         help=' * version of project in dependencytrack. eg. 1.0.0. *')
     parser.add_argument('-f', '--filename', type=str,
                         help='file path of sbom. eg. target/bom.xml, mybom.xml')
+    parser.add_argument('--parent_project', type=str,
+                        help=' * parent project name to be used in dependencytrack.eg: mywebapp')
+    parser.add_argument('--parent_version', type=str,
+                        help=' * parent version of project in dependencytrack. eg. 1.0.0')
+    parser.add_argument('--parent_uuid', type=str,
+                        help=' * parent uuid of project in dependencytrack. eg. a66c6686-3ed8-4102-b96d-e0c57b110898')
     parser.add_argument('-r', '--rules', type=str,
                         help='rules to evaluate')
     parser.add_argument('-a', '--auto', action="store_true",
@@ -102,6 +108,9 @@ def main():
     dt_api_key = args.apikey.strip()
     filename = args.filename.strip()
     show_details = args.showdetails.strip().upper()
+    parent_project = args.parent_project
+    parent_version = args.parent_version
+    parent_uuid = args.parent_uuid
 
     if args.getversion:
         Auditor.get_dependencytrack_version(dt_server, dt_api_key, verify=args.certchain)
@@ -121,13 +130,13 @@ def main():
     print('Provided project name and version: ', project_name, version)
     if args.auto:
         print('Auto mode ON')
-        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, True, wait=args.wait, verify=args.certchain)
-        project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version, verify=args.certchain)
+        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, parent_project, parent_version, parent_uuid, True, wait=args.wait)
+        project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version)
         if project_uuid:
             Auditor.check_policy_violations(dt_server, dt_api_key, project_uuid, verify=args.certchain)
             Auditor.check_vulnerabilities(dt_server, dt_api_key, project_uuid, args.rules, show_details, verify=args.certchain)
     else:
-        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, False, wait=args.wait, verify=args.certchain)
+        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, parent_project, parent_version, parent_uuid, False, wait=args.wait, verify=args.certchain)
 
 if __name__ == '__main__':
    main()
