@@ -120,7 +120,7 @@ class DTrackClient:
             else:
                 if ['true', 'yes', 'on', '1'].contains(str(self.ssl_verify).lower()):
                     self.ssl_verify = True
-                if ['false', 'no', 'off', '0'].contains(str(self.ssl_verify).lower()):
+                if ['false', 'none', 'no', 'off', '0'].contains(str(self.ssl_verify).lower()):
                     self.ssl_verify = False
 
         if self.ssl_verify is None:
