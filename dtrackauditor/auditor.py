@@ -81,8 +81,6 @@ class DTrackClient:
         """ Dependency-Track server base URL, e.g. http://dtrack.abc.local:8080
 
         Any trailing slash is stripped. """
-        if isinstance(self.base_url, str):
-            self.base_url = self.base_url.rstrip('/')
 
         self.api_key: str|int|None = api_key
         """ Dependency-Track server API Key with permissions for needed manipulations. """
@@ -93,10 +91,47 @@ class DTrackClient:
 
         Note again, that an *optional* TLS certificate chain (server, CA) can be provided here.
         """
+
+        self.normalize()
+
+    def isBaseUrlHTTPS(self):
+        return str(self.base_url).lower().startswith('https://')
+
+    def normalizeBaseUrl(self):
+        if isinstance(self.base_url, str):
+            #self.base_url = self.base_url.strip().rstrip('/')
+            self.base_url = self.base_url.strip()
+            while len(self.base_url) > 0 and self.base_url[-1] == '/':
+                self.base_url = self.base_url[:-1]
+        return self.base_url
+
+    def normalizeApiKey(self):
+        if isinstance(self.api_key, str):
+            self.api_key = self.api_key.strip()
+        return self.api_key
+
+    def normalizeSslVerify(self):
         if self.ssl_verify is None:
+            self.ssl_verify = self.isBaseUrlHTTPS()
             if Auditor.DEBUG_VERBOSITY > 0:
-                print("Auditor.init(): defaulting ssl_verify=True")
-            self.ssl_verify = True
+                print("Auditor.init(): defaulting ssl_verify=%s" % str(self.ssl_verify))
+
+        if isinstance(self.ssl_verify, str):
+            self.ssl_verify = self.ssl_verify.strip()
+
+            if len(self.ssl_verify) > 0:
+                if ['true', 'yes', 'on', '1'].contains(str(self.ssl_verify).lower()):
+                    self.ssl_verify = True
+                if ['false', 'none', 'no', 'off', '0'].contains(str(self.ssl_verify).lower()):
+                    self.ssl_verify = False
+
+        return self.ssl_verify
+
+    def normalize(self):
+        self.normalizeBaseUrl()
+        self.normalizeApiKey()
+        self.normalizeSslVerify()
+        return self
 
     def initByEnvvars(self, base_url: str|None = 'DTRACK_SERVER', api_key: str|None = 'DTRACK_API_KEY', ssl_verify: str|None = 'DTRACK_SERVER_CERTCHAIN'): # -> DTrackClient:
         if base_url is not None:
@@ -104,8 +139,6 @@ class DTrackClient:
             if self.base_url is None or len(self.base_url) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0:
                     print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % base_url)
-            else:
-                self.base_url = self.base_url.rstrip('/')
 
         if api_key is not None:
             self.api_key = os.environ.get(api_key)
@@ -117,16 +150,8 @@ class DTrackClient:
             if self.ssl_verify is None or len(self.ssl_verify) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0 and str(self.base_url).lower().startswith('https://'):
                     print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % ssl_verify)
-            else:
-                if ['true', 'yes', 'on', '1'].contains(str(self.ssl_verify).lower()):
-                    self.ssl_verify = True
-                if ['false', 'none', 'no', 'off', '0'].contains(str(self.ssl_verify).lower()):
-                    self.ssl_verify = False
 
-        if self.ssl_verify is None:
-            if Auditor.DEBUG_VERBOSITY > 0:
-                print("Auditor.initByEnvvars(): defaulting ssl_verify=True")
-            self.ssl_verify = True
+        self.normalize()
 
         # Allow chaining like:
         #   dtc = DTrackClient().initByEnvvars()
