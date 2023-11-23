@@ -375,7 +375,7 @@ class Auditor:
     def poll_bom_token_being_processed(host, key, bom_token, wait=True, verify=True):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
-        assert (bom is not None and bom != "")
+        assert (bom_token is not None and bom_token != "")
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for bom to be processed on dt server ...")
