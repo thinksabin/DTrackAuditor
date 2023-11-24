@@ -144,7 +144,10 @@ class DTrackClient:
         if self.ssl_verify is None:
             self.ssl_verify = self.isBaseUrlHTTPS()
             if Auditor.DEBUG_VERBOSITY > 0:
-                print("Auditor.init(): defaulting ssl_verify=%s" % str(self.ssl_verify))
+                # Note: This can get reported twice for a chain of events like
+                #   dtc = DTrackClient().initByEnvvars().sanityCheck()
+                # (once from init() defaults and once from a missing envvar value)
+                print("Auditor.normalizeSslVerify(): defaulting ssl_verify=%s" % str(self.ssl_verify))
 
         if isinstance(self.ssl_verify, str):
             self.ssl_verify = self.ssl_verify.strip()
