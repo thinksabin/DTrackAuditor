@@ -148,7 +148,10 @@ class DTrackClient:
                 # Note: This can get reported twice for a chain of events like
                 #   dtc = DTrackClient().initByEnvvars().sanityCheck()
                 # (once from init() defaults and once from a missing envvar value)
-                print("Auditor.normalizeSslVerify(): defaulting ssl_verify=%s" % str(self.ssl_verify))
+                print("Auditor.normalizeSslVerify(): defaulting ssl_verify=%s%s" % (
+                    str(self.ssl_verify),
+                    ": DependencyTrack server is HTTPS but no path to file with cert chain was provided (may be required if not using a well-known CA)" if self.ssl_verify else ""
+                ))
 
         if isinstance(self.ssl_verify, str):
             self.ssl_verify = self.ssl_verify.strip()
@@ -239,7 +242,7 @@ class DTrackClient:
                 if len(self.ssl_verify) == 0:
                     raise AuditorException('DependencyTrack SSL verification is not set properly: seems set but is empty. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value')
                 if not Path(self.ssl_verify).exists():
-                    raise AuditorException("DependencyTrack SSL verification is not set properly: seems set but path '%s' does not exist. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value" % str(self.ssl_verify))
+                    raise AuditorException("DependencyTrack SSL verification is not set properly: seems set but specified path to file with cert chain '%s' does not exist. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value" % str(self.ssl_verify))
             else:
                 if not isinstance(self.ssl_verify, bool):
                     raise AuditorException('DependencyTrack SSL verification is not set properly. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value')
