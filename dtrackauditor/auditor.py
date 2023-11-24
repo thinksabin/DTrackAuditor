@@ -143,14 +143,18 @@ class DTrackClient:
 
     def normalizeSslVerify(self):
         if self.ssl_verify is None:
+            if self.base_url is None:
+                return None
+
             self.ssl_verify = self.isBaseUrlHTTPS()
             if Auditor.DEBUG_VERBOSITY > 0:
                 # Note: This can get reported twice for a chain of events like
                 #   dtc = DTrackClient().initByEnvvars().sanityCheck()
                 # (once from init() defaults and once from a missing envvar value)
-                print("Auditor.normalizeSslVerify(): defaulting ssl_verify=%s%s" % (
+                print("Auditor.normalizeSslVerify(): defaulting ssl_verify=%s for base URL %s%s" % (
                     str(self.ssl_verify),
-                    ": DependencyTrack server is HTTPS but no path to file with cert chain was provided (may be required if not using a well-known CA)" if self.ssl_verify else ""
+                    str(self.base_url),
+                    " : DependencyTrack server is HTTPS but no path to file with cert chain was provided (may be required if not using a well-known CA)" if self.ssl_verify else ""
                 ))
 
         if isinstance(self.ssl_verify, str):
