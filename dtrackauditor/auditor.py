@@ -110,6 +110,36 @@ class DTrackClient:
             self.api_key = self.api_key.strip()
         return self.api_key
 
+    @staticmethod
+    def tryAsBool(
+            val,
+            meaningOfNone: bool|None = False,
+            meaningOfEmptyString: bool|None = True
+    ):
+        """ Converts certain values of "val" (case-insensitive string or
+        integer) into a bool. Special consideration for None and "None"
+        (string), and for an empty string (after stripping whitespace).
+        If there is no match, keeps and returns "val" as is.
+        """
+        if val is None:
+            if meaningOfNone is not None:
+                val = meaningOfNone
+        else:
+            if isinstance(val, str) or isinstance(val, int):
+                tmp = str(val).strip().lower()
+                if len(tmp) > 0:
+                    if tmp in ['true', 'yes', 'on', '1']:
+                        val = True
+                    if tmp in ['false', 'no', 'off', '0']:
+                        val = False
+                    if meaningOfNone is not None and tmp == "none":
+                        val = meaningOfNone
+                else:
+                    if meaningOfEmptyString is not None:
+                        val = meaningOfEmptyString
+
+        return val
+
     def normalizeSslVerify(self):
         if self.ssl_verify is None:
             self.ssl_verify = self.isBaseUrlHTTPS()
@@ -119,11 +149,7 @@ class DTrackClient:
         if isinstance(self.ssl_verify, str):
             self.ssl_verify = self.ssl_verify.strip()
 
-            if len(self.ssl_verify) > 0:
-                if ['true', 'yes', 'on', '1'].contains(str(self.ssl_verify).lower()):
-                    self.ssl_verify = True
-                if ['false', 'none', 'no', 'off', '0'].contains(str(self.ssl_verify).lower()):
-                    self.ssl_verify = False
+        self.ssl_verify = DTrackClient.tryAsBool(self.ssl_verify)
 
         return self.ssl_verify
 
