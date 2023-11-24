@@ -515,12 +515,14 @@ class Auditor:
         return bom_token
 
     @staticmethod
-    def clone_project_by_uuid(host, key, old_project_version_uuid,
-                           new_version, new_name=None, includeALL=True,
-                           includeACL=None, includeAuditHistory=None,
-                           includeComponents=None, includeProperties=None,
-                           includeServices=None, includeTags=None,
-                           wait=False, verify=True, safeSleep=3):
+    def clone_project_by_uuid(
+            host, key, old_project_version_uuid,
+            new_version, new_name=None, includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=False, verify=True, safeSleep=3
+    ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_version_uuid is not None and old_project_version_uuid != "")
@@ -630,12 +632,14 @@ class Auditor:
         return new_project_uuid
 
     @staticmethod
-    def clone_project_by_name_version(host, key, old_project_name, old_project_version,
-                           new_version, new_name=None, includeALL=True,
-                           includeACL=None, includeAuditHistory=None,
-                           includeComponents=None, includeProperties=None,
-                           includeServices=None, includeTags=None,
-                           wait=False, verify=True, safeSleep=3):
+    def clone_project_by_name_version(
+            host, key, old_project_name, old_project_version,
+            new_version, new_name=None, includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=False, verify=True, safeSleep=3
+    ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_name is not None and old_project_name != "")
