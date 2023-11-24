@@ -329,7 +329,12 @@ class DTrackClient:
             version=version,
             verify=self.ssl_verify)
 
-    def read_upload_bom(self, project_name, version, filename, auto_create, project_id=None, wait=False):
+    def read_upload_bom(
+            self,
+            project_name, version, filename, auto_create,
+            project_id=None,
+            parent_project=None, parent_version=None, parent_id=None,
+            wait=False):
         return Auditor.read_upload_bom(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
@@ -337,6 +342,9 @@ class DTrackClient:
             filename=filename,
             auto_create=auto_create,
             project_uuid=project_id,
+            parent_project=parent_project,
+            parent_version=parent_version,
+            parent_uuid=parent_id,
             wait=wait, verify=self.ssl_verify)
 
     def clone_project_by_uuid(
