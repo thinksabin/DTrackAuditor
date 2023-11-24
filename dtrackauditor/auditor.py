@@ -431,7 +431,7 @@ class Auditor:
             print(f"Reading {filename} ...")
         filenameChecked = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
         if filenameChecked != filename and Auditor.DEBUG_VERBOSITY > 2:
-            print(f"Actually, found it as {filenameChecked} ...")
+            print(f"Actually, resolved it as {filenameChecked} ...")
 
         if not Path(filenameChecked).exists():
             raise AuditorException(f"{filenameChecked} not found !")
