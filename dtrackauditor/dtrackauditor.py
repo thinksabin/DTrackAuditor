@@ -130,7 +130,7 @@ def main():
     print('Provided project name and version: ', project_name, version)
     if args.auto:
         print('Auto mode ON')
-        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, True, wait=args.wait, verify=args.certchain)
+        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, True, None, parent_project, parent_version, parent_uuid, wait=args.wait, verify=args.certchain)
         project_uuid = Auditor.get_project_with_version_id(dt_server, dt_api_key, project_name, version, verify=args.certchain)
         print(f'Project UUID: {project_uuid}')
 
@@ -138,7 +138,7 @@ def main():
             Auditor.check_policy_violations(dt_server, dt_api_key, project_uuid, verify=args.certchain)
             Auditor.check_vulnerabilities(dt_server, dt_api_key, project_uuid, args.rules, show_details, verify=args.certchain)
     else:
-        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, parent_project, parent_version, parent_uuid, False, wait=args.wait, verify=args.certchain)
+        Auditor.read_upload_bom(dt_server, dt_api_key, project_name, version, filename, False, None, parent_project, parent_version, parent_uuid, wait=args.wait, verify=args.certchain)
 
 if __name__ == '__main__':
    main()
