@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import base64
+import inspect
 import polling
 import requests
 from pathlib import Path
@@ -153,6 +154,30 @@ class DTrackClient:
             self.ssl_verify = self.ssl_verify.strip()
 
         self.ssl_verify = DTrackClient.tryAsBool(self.ssl_verify)
+
+        if isinstance(self.ssl_verify, str) and len(self.ssl_verify) > 0:
+            if os.path.exists(self.ssl_verify) and not os.path.isabs(self.ssl_verify):
+                # Presumably a relative pathname was provided, and actually
+                # one such exists compared to current working directory; so
+                # be sure to use the intended file even if we chdir() later
+                # in the consuming program:
+                tmp = os.path.sep.join([os.getcwd(), self.ssl_verify])
+                if os.path.exists(tmp):
+                    if Auditor.DEBUG_VERBOSITY > 0:
+                        print("Auditor.normalizeSslVerify(): remembering cert path relative to CWD: %s => %s" % (str(self.ssl_verify), tmp))
+                    self.ssl_verify = tmp
+
+            if not os.path.exists(self.ssl_verify) and not os.path.isabs(self.ssl_verify):
+                # Is there some cert file distributed with the program
+                # (so the specified non-absolute path is relative to *it*)?
+                tmp = os.path.sep.join([
+                    os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))),
+                    self.ssl_verify
+                ])
+                if os.path.exists(tmp):
+                    if Auditor.DEBUG_VERBOSITY > 0:
+                        print("Auditor.normalizeSslVerify(): remembering cert path relative to program/module: %s => %s" % (str(self.ssl_verify), tmp))
+                    self.ssl_verify = tmp
 
         return self.ssl_verify
 
