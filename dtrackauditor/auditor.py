@@ -187,20 +187,32 @@ class DTrackClient:
         self.normalizeSslVerify()
         return self
 
-    def initByEnvvars(self, base_url: str|None = 'DTRACK_SERVER', api_key: str|None = 'DTRACK_API_KEY', ssl_verify: str|None = 'DTRACK_SERVER_CERTCHAIN'): # -> DTrackClient:
-        if base_url is not None:
-            self.base_url = os.environ.get(base_url)
+    def initByEnvvars(
+            self,
+            base_url_varname: str|None = 'DTRACK_SERVER',
+            base_url_default: str|None = None,
+            api_key_varname: str|None = 'DTRACK_API_KEY',
+            api_key_default: str|None = None,
+            ssl_verify_varname: str|None = 'DTRACK_SERVER_CERTCHAIN',
+            ssl_verify_default: str|None = None
+    ): # -> DTrackClient:
+        """ (Re-)initialize settings from environment variables whose names
+        are specified by arguments, with optional fallback default values.
+        You can specify something_varname=None to avoid (re-)setting that value.
+        """
+        if base_url_varname is not None:
+            self.base_url = os.environ.get(base_url_varname, base_url_default)
             if self.base_url is None or len(self.base_url) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0:
                     print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % base_url)
 
-        if api_key is not None:
-            self.api_key = os.environ.get(api_key)
+        if api_key_varname is not None:
+            self.api_key = os.environ.get(api_key_varname, api_key_default)
             if (self.api_key is None or len(self.api_key) == 0) and Auditor.DEBUG_VERBOSITY > 0:
                 print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % api_key)
 
-        if ssl_verify is not None:
-            self.ssl_verify = os.environ.get(ssl_verify)
+        if ssl_verify_varname is not None:
+            self.ssl_verify = os.environ.get(ssl_verify_varname, ssl_verify_default)
             if self.ssl_verify is None or len(self.ssl_verify) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0 and str(self.base_url).lower().startswith('https://'):
                     print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % ssl_verify)
