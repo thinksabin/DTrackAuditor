@@ -693,11 +693,13 @@ class Auditor:
             old_project_name=None, old_project_version=None,
             activate_old=None, activate_new=None,
             deleteExistingClone=False,
+            parent_project=None, parent_version=None, parent_uuid=None,
             includeALL=True,
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=True, verify=True, safeSleep=3):
+            wait=True, verify=True, safeSleep=3
+    ):
         """
         Clones an existing project and uploads a new SBOM document into it, in one swift operation.
 
@@ -799,6 +801,7 @@ class Auditor:
         bom_token = Auditor.read_upload_bom(
             host, key, project_name=None, version=None,
             filename=filename, auto_create=False, project_uuid=new_project_uuid,
+            parent_project=parent_project, parent_version=parent_version, parent_uuid=parent_uuid,
             wait=wait, verify=verify)
 
         assert (bom_token is not None and bom_token != "")
