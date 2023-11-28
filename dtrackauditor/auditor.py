@@ -732,13 +732,17 @@ class Auditor:
         return json.loads(r.text)
 
     @staticmethod
-    def get_project_list(host, key, verify=True):
-        """ Return a dictionary with all known projects, or raise exceptions
-        upon errors. """
+    def get_project_list(host, key, project_name=None, verify=True):
+        """ Return a list of dictionaries with basic information about
+        all known projects (optionally constrained to one `project_name`),
+        or raise exceptions upon errors. """
         assert (host is not None and host != "")
         assert (key is not None and key != "")
+        assert (project_name is None or project_name != "")
 
         url = host + API_PROJECT
+        if project_name is not None:
+            url += "?name={}".format(project_name)
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
