@@ -733,17 +733,43 @@ class Auditor:
         return json.loads(r.text)
 
     @staticmethod
-    def get_project_list(host, key, project_name=None, verify=True):
+    def get_project_list(
+            host, key,
+            project_name=None,
+            exclude_inactive=False,
+            exclude_children=False,
+            verify=True
+    ):
         """ Return a list of dictionaries with basic information about
         all known projects (optionally constrained to one `project_name`),
-        or raise exceptions upon errors. """
+        or raise exceptions upon errors.
+        Further options are to exclude_inactive and/or exclude_children.
+        """
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is None or project_name != "")
 
         url = host + API_PROJECT
+        urlsep = "?"
         if project_name is not None:
-            url += "?name={}".format(project_name)
+            url += "{}name={}".format(urlsep, project_name)
+            urlsep = "&"
+
+        if isinstance(exclude_inactive, bool):
+            url += "{}excludeInactive={}".format(urlsep, exclude_inactive)
+            urlsep = "&"
+
+        # FIXME: As of DT 4.9.0 it seems the `onlyRoot=bool` handling is
+        #  inverted vs. its documentation ("true" returns root and child
+        #  projects, "false" returns only the root). If this gets fixed
+        #  by upstream later (or behaved differently in other versions)
+        #  we may want to query get_dependencytrack_version(), and maybe
+        #  cache it for each "host", so we would only invert the boolean
+        #  for some range of server versions...
+        if isinstance(exclude_children, bool):
+            url += "{}onlyRoot={}".format(urlsep, not exclude_children)
+            #urlsep = "&"
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
