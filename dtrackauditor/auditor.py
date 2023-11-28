@@ -310,10 +310,17 @@ class DTrackClient:
             project_id=project_id,
             verify=self.ssl_verify)
 
-    def get_project_list(self, project_name=None):
+    def get_project_list(
+            self,
+            project_name=None,
+            exclude_inactive=False,
+            exclude_children=False
+    ):
         return Auditor.get_project_list(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
+            exclude_inactive=exclude_inactive,
+            exclude_children=exclude_children,
             verify=self.ssl_verify)
 
     def get_project_without_version_id(self, project_name, version):
