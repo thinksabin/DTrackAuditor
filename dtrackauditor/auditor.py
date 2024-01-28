@@ -1,7 +1,9 @@
+import os
 import sys
 import json
 import time
 import base64
+import inspect
 import polling
 import requests
 from pathlib import Path
@@ -63,11 +65,382 @@ class AuditorRESTAPIException(AuditorException):
     def __str__(self):
         return AuditorRESTAPIException.stringify(self.message, self.result)
 
+
+class DTrackClient:
+    """ Instance of Dependency-Track server client with pre-configured credentials, e.g.
+
+    dtc = DTrackClient().initByEnvvars().sanityCheck()
+
+    Relies on the Auditor class for actual logic. """
+
+    def __init__(self, base_url: str|None = None, api_key: str|None = None, ssl_verify: str|bool|None = None):
+        """ Initializer from basic string/bool/int values.
+        See also initByEnvvars() for follow-up from environment variables (can keep "None" here then).
+        """
+
+        self.base_url: str|None = base_url
+        """ Dependency-Track server base URL, e.g. http://dtrack.abc.local:8080
+
+        Any trailing slash is stripped. """
+
+        self.api_key: str|int|None = api_key
+        """ Dependency-Track server API Key with permissions for needed manipulations. """
+
+        self.ssl_verify: str|bool|None = ssl_verify
+        """ SSL/TLS verification setting (False to trust anything, True to use system cert store,
+        or a string path name to file with server+CA certs).
+
+        Note again, that an *optional* TLS certificate chain (server, CA) can be provided here.
+        """
+
+        self.normalize()
+
+    def isBaseUrlHTTPS(self):
+        return str(self.base_url).lower().startswith('https://')
+
+    def normalizeBaseUrl(self):
+        if isinstance(self.base_url, str):
+            #self.base_url = self.base_url.strip().rstrip('/')
+            self.base_url = self.base_url.strip()
+            while len(self.base_url) > 0 and self.base_url[-1] == '/':
+                self.base_url = self.base_url[:-1]
+        return self.base_url
+
+    def normalizeApiKey(self):
+        if isinstance(self.api_key, str):
+            self.api_key = self.api_key.strip()
+        return self.api_key
+
+    @staticmethod
+    def tryAsBool(
+            val,
+            meaningOfNone: bool|None = False,
+            meaningOfEmptyString: bool|None = True
+    ):
+        """ Converts certain values of "val" (case-insensitive string or
+        integer) into a bool. Special consideration for None and "None"
+        (string), and for an empty string (after stripping whitespace).
+        If there is no match, keeps and returns "val" as is.
+        """
+        if val is None:
+            if meaningOfNone is not None:
+                val = meaningOfNone
+        else:
+            if isinstance(val, str) or isinstance(val, int):
+                tmp = str(val).strip().lower()
+                if len(tmp) > 0:
+                    if tmp in ['true', 'yes', 'on', '1']:
+                        val = True
+                    if tmp in ['false', 'no', 'off', '0']:
+                        val = False
+                    if meaningOfNone is not None and tmp == "none":
+                        val = meaningOfNone
+                else:
+                    if meaningOfEmptyString is not None:
+                        val = meaningOfEmptyString
+
+        return val
+
+    def normalizeSslVerify(self):
+        if self.ssl_verify is None:
+            if self.base_url is None:
+                return None
+
+            self.ssl_verify = self.isBaseUrlHTTPS()
+            if Auditor.DEBUG_VERBOSITY > 0:
+                # Note: This can get reported twice for a chain of events like
+                #   dtc = DTrackClient().initByEnvvars().sanityCheck()
+                # (once from init() defaults and once from a missing envvar value)
+                print("Auditor.normalizeSslVerify(): defaulting ssl_verify=%s for base URL %s%s" % (
+                    str(self.ssl_verify),
+                    str(self.base_url),
+                    " : DependencyTrack server is HTTPS but no path to file with cert chain was provided (may be required if not using a well-known CA)" if self.ssl_verify else ""
+                ))
+
+        if isinstance(self.ssl_verify, str):
+            self.ssl_verify = self.ssl_verify.strip()
+
+        self.ssl_verify = DTrackClient.tryAsBool(self.ssl_verify)
+
+        if isinstance(self.ssl_verify, str) and len(self.ssl_verify) > 0:
+            if os.path.exists(self.ssl_verify) and not os.path.isabs(self.ssl_verify):
+                # Presumably a relative pathname was provided, and actually
+                # one such exists compared to current working directory; so
+                # be sure to use the intended file even if we chdir() later
+                # in the consuming program:
+                tmp = os.path.sep.join([os.getcwd(), self.ssl_verify])
+                if os.path.exists(tmp):
+                    if Auditor.DEBUG_VERBOSITY > 0:
+                        print("Auditor.normalizeSslVerify(): remembering cert path relative to CWD: %s => %s" % (str(self.ssl_verify), tmp))
+                    self.ssl_verify = tmp
+
+            if not os.path.exists(self.ssl_verify) and not os.path.isabs(self.ssl_verify):
+                # Is there some cert file distributed with the program
+                # (so the specified non-absolute path is relative to *it*)?
+                tmp = os.path.sep.join([
+                    os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))),
+                    self.ssl_verify
+                ])
+                if os.path.exists(tmp):
+                    if Auditor.DEBUG_VERBOSITY > 0:
+                        print("Auditor.normalizeSslVerify(): remembering cert path relative to program/module: %s => %s" % (str(self.ssl_verify), tmp))
+                    self.ssl_verify = tmp
+
+        return self.ssl_verify
+
+    def normalize(self):
+        self.normalizeBaseUrl()
+        self.normalizeApiKey()
+        self.normalizeSslVerify()
+        return self
+
+    def initByEnvvars(
+            self,
+            base_url_varname: str|None = 'DTRACK_SERVER',
+            base_url_default: str|None = None,
+            api_key_varname: str|None = 'DTRACK_API_KEY',
+            api_key_default: str|None = None,
+            ssl_verify_varname: str|None = 'DTRACK_SERVER_CERTCHAIN',
+            ssl_verify_default: str|None = None
+    ): # -> DTrackClient:
+        """ (Re-)initialize settings from environment variables whose names
+        are specified by arguments, with optional fallback default values.
+        You can specify something_varname=None to avoid (re-)setting that value.
+        """
+        if base_url_varname is not None:
+            self.base_url = os.environ.get(base_url_varname, base_url_default)
+            if self.base_url is None or len(self.base_url) == 0:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % base_url)
+
+        if api_key_varname is not None:
+            self.api_key = os.environ.get(api_key_varname, api_key_default)
+            if (self.api_key is None or len(self.api_key) == 0) and Auditor.DEBUG_VERBOSITY > 0:
+                print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % api_key)
+
+        if ssl_verify_varname is not None:
+            self.ssl_verify = os.environ.get(ssl_verify_varname, ssl_verify_default)
+            if self.ssl_verify is None or len(self.ssl_verify) == 0:
+                if Auditor.DEBUG_VERBOSITY > 0 and str(self.base_url).lower().startswith('https://'):
+                    print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % ssl_verify)
+
+        self.normalize()
+
+        # Allow chaining like:
+        #   dtc = DTrackClient().initByEnvvars()
+        return self
+
+    def sanityCheck(self): # -> DTrackClient:
+        """ Raise exceptions if required values are not present in this instance. """
+        if self.base_url is None or not isinstance(self.base_url, str) or len(self.base_url) == 0:
+            raise AuditorException('DependencyTrack server URL is required. Set Env $DTRACK_SERVER, e.g.: http://dtrack.my.local:8080')
+
+        if self.api_key is None or not isinstance(self.api_key, str) or len(self.api_key) == 0:
+            raise AuditorException('DependencyTrack API key is required. Set Env $DTRACK_API_KEY')
+
+        if str(self.base_url).lower().startswith('https://'):
+            if self.ssl_verify is None:
+                raise AuditorException('DependencyTrack SSL verification is not set properly. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value')
+
+            if isinstance(self.ssl_verify, str):
+                if len(self.ssl_verify) == 0:
+                    raise AuditorException('DependencyTrack SSL verification is not set properly: seems set but is empty. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value')
+                if not Path(self.ssl_verify).exists():
+                    raise AuditorException("DependencyTrack SSL verification is not set properly: seems set but specified path to file with cert chain '%s' does not exist. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value" % str(self.ssl_verify))
+            else:
+                if not isinstance(self.ssl_verify, bool):
+                    raise AuditorException('DependencyTrack SSL verification is not set properly. Set Env $DTRACK_SERVER_CERTCHAIN to path name or boolean value')
+
+        # Allow chaining like:
+        #   dtc = DTrackClient().initByEnvvars().sanityCheck()
+        return self
+
+    def __str__(self):
+        return "DTrackClient instance for '%s' identified by '%s'; SSL/TLS verification: %s" % (
+            str(self.base_url), str(self.api_key), str(self.ssl_verify)
+        )
+
+    def poll_bom_token_being_processed(self, bom_token, wait=True):
+        return Auditor.poll_bom_token_being_processed(
+            host=self.base_url, key=self.api_key,
+            bom_token=bom_token,
+            wait=wait, verify=self.ssl_verify)
+
+    def poll_project_uuid(self, project_id, wait=True):
+        return Auditor.poll_project_uuid(
+            host=self.base_url, key=self.api_key,
+            project_uuid=project_id,
+            wait=wait, verify=self.ssl_verify)
+
+    def delete_project_uuid(self, project_id, wait=True):
+        return Auditor.delete_project_uuid(
+            host=self.base_url, key=self.api_key,
+            project_uuid=project_id,
+            wait=wait, verify=self.ssl_verify)
+
+    def delete_project(self, project_name, wait=True):
+        return Auditor.delete_project(
+            host=self.base_url, key=self.api_key,
+            project_name=project_name,
+            wait=wait, verify=self.ssl_verify)
+
+    def get_project_policy_violations(self, project_id):
+        return Auditor.get_project_policy_violations(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+
+    def check_vulnerabilities(self, project_id, rules, show_details):
+        return Auditor.check_vulnerabilities(
+            host=self.base_url, key=self.api_key,
+            project_uuid=project_id,
+            rules=rules,
+            show_details=show_details,
+            verify=self.ssl_verify)
+
+    def check_policy_violations(self, project_id):
+        return Auditor.check_policy_violations(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+
+    def get_project_findings(self, project_id):
+        return Auditor.get_project_findings(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+
+    def get_project_list(self):
+        return Auditor.get_project_list(
+            host=self.base_url, key=self.api_key,
+            verify=self.ssl_verify)
+
+    def get_project_without_version_id(self, project_name, version):
+        return Auditor.get_project_without_version_id(
+            host=self.base_url, key=self.api_key,
+            project_name=project_name,
+            version=version,
+            verify=self.ssl_verify)
+
+    def get_project_with_version_id(self, project_name, version):
+        return Auditor.get_project_with_version_id(
+            host=self.base_url, key=self.api_key,
+            project_name=project_name,
+            version=version,
+            verify=self.ssl_verify)
+
+    def read_upload_bom(self, project_name, version, filename, auto_create, project_id=None, wait=False):
+        return Auditor.read_upload_bom(
+            host=self.base_url, key=self.api_key,
+            project_name=project_name,
+            version=version,
+            filename=filename,
+            auto_create=auto_create,
+            project_uuid=project_id,
+            wait=wait, verify=self.ssl_verify)
+
+    def clone_project_by_uuid(
+            self, old_project_version_id,
+            new_version, new_name=None, includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=False, safeSleep=3):
+        return Auditor.clone_project_by_uuid(
+            host=self.base_url, key=self.api_key,
+            old_project_version_uuid=old_project_version_id,
+            new_version=new_version,
+            new_name=new_name,
+            includeALL=includeALL,
+            includeACL=includeACL,
+            includeAuditHistory=includeAuditHistory,
+            includeComponents=includeComponents,
+            includeProperties=includeProperties,
+            includeServices=includeServices,
+            includeTags=includeTags,
+            safeSleep=safeSleep,
+            wait=wait, verify=self.ssl_verify)
+
+    def clone_project_by_name_version(
+            self, old_project_name, old_project_version,
+            new_version, new_name=None, includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=False, safeSleep=3):
+        return Auditor.clone_project_by_name_version(
+            host=self.base_url, key=self.api_key,
+            old_project_name=old_project_name,
+            old_project_version=old_project_version,
+            new_version=new_version,
+            new_name=new_name,
+            includeALL=includeALL,
+            includeACL=includeACL,
+            includeAuditHistory=includeAuditHistory,
+            includeComponents=includeComponents,
+            includeProperties=includeProperties,
+            includeServices=includeServices,
+            includeTags=includeTags,
+            safeSleep=safeSleep,
+            wait=wait, verify=self.ssl_verify)
+
+    def set_project_active(self, project_id, active=True, wait=False):
+        return Auditor.set_project_active(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            active=active,
+            wait=wait, verify=self.ssl_verify)
+
+    def clone_update_project(
+            self, filename, new_version,
+            new_name=None,
+            old_project_version_id=None,
+            old_project_name=None, old_project_version=None,
+            activate_old=None, activate_new=None,
+            deleteExistingClone=False,
+            includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=True, safeSleep=3):
+        return Auditor.clone_update_project(
+            host=self.base_url, key=self.api_key,
+            filename=filename,
+            new_version=new_version,
+            new_name=new_name,
+            old_project_version_uuid=old_project_version_id,
+            old_project_name=old_project_name,
+            old_project_version=old_project_version,
+            activate_old=activate_old,
+            activate_new=activate_new,
+            deleteExistingClone=deleteExistingClone,
+            includeALL=includeALL,
+            includeACL=includeACL,
+            includeAuditHistory=includeAuditHistory,
+            includeComponents=includeComponents,
+            includeProperties=includeProperties,
+            includeServices=includeServices,
+            includeTags=includeTags,
+            safeSleep=safeSleep,
+            wait=wait, verify=self.ssl_verify)
+
+    def get_dependencytrack_version(self):
+        return Auditor.get_dependencytrack_version(
+            host=self.base_url, key=self.api_key,
+            verify=self.ssl_verify)
+
+
 class Auditor:
     DEBUG_VERBOSITY = 3
     """ Library code is peppered with direct prints for the associated
     utility; some messages are only shown if Auditor.DEBUG_VERBOSITY
-    is sufficiently high """
+    is sufficiently high.
+
+    For historic reasons (single-purpose client) this class is full of
+    static methods, with OOP-style instances of a separate DTrackClient
+    class added later to avoid the hassle of passing the same arguments
+    around. It could not be squashed into the same class (at least not
+    while using same method names). """
 
     @staticmethod
     def poll_response(response):
