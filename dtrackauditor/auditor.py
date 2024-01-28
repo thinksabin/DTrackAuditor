@@ -804,7 +804,7 @@ class Auditor:
             print(f"Reading {filename} ...")
         filenameChecked = filename if Path(filename).exists() else str(Path(__file__).parent / filename)
         if filenameChecked != filename and Auditor.DEBUG_VERBOSITY > 2:
-            print(f"Actually, found it as {filenameChecked} ...")
+            print(f"Actually, resolved it as {filenameChecked} ...")
 
         if not Path(filenameChecked).exists():
             raise AuditorException(f"{filenameChecked} not found !")
@@ -826,7 +826,13 @@ class Auditor:
         #return None
 
     @staticmethod
-    def read_upload_bom(host, key, project_name, version, filename, auto_create, project_uuid=None, wait=False, verify=True):
+    def read_upload_bom(
+        host, key,
+        project_name, version, filename, auto_create,
+        project_uuid=None,
+        parent_project=None, parent_version=None, parent_uuid=None,
+        wait=False, verify=True
+    ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (
@@ -857,6 +863,16 @@ class Auditor:
         if version is not None:
             payload["projectVersion"] = version
 
+        # These where added in version 4.8 of DT
+        if parent_project:
+            payload["parentName"] =  parent_project
+
+        if parent_version:
+            payload["parentVersion"] = parent_version
+
+        if parent_uuid:
+            payload["parentUUID"] = parent_uuid
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
@@ -872,12 +888,14 @@ class Auditor:
         return bom_token
 
     @staticmethod
-    def clone_project_by_uuid(host, key, old_project_version_uuid,
-                           new_version, new_name=None, includeALL=True,
-                           includeACL=None, includeAuditHistory=None,
-                           includeComponents=None, includeProperties=None,
-                           includeServices=None, includeTags=None,
-                           wait=False, verify=True, safeSleep=3):
+    def clone_project_by_uuid(
+            host, key, old_project_version_uuid,
+            new_version, new_name=None, includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=False, verify=True, safeSleep=3
+    ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_version_uuid is not None and old_project_version_uuid != "")
@@ -987,12 +1005,14 @@ class Auditor:
         return new_project_uuid
 
     @staticmethod
-    def clone_project_by_name_version(host, key, old_project_name, old_project_version,
-                           new_version, new_name=None, includeALL=True,
-                           includeACL=None, includeAuditHistory=None,
-                           includeComponents=None, includeProperties=None,
-                           includeServices=None, includeTags=None,
-                           wait=False, verify=True, safeSleep=3):
+    def clone_project_by_name_version(
+            host, key, old_project_name, old_project_version,
+            new_version, new_name=None, includeALL=True,
+            includeACL=None, includeAuditHistory=None,
+            includeComponents=None, includeProperties=None,
+            includeServices=None, includeTags=None,
+            wait=False, verify=True, safeSleep=3
+    ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_name is not None and old_project_name != "")
@@ -1050,11 +1070,13 @@ class Auditor:
             old_project_name=None, old_project_version=None,
             activate_old=None, activate_new=None,
             deleteExistingClone=False,
+            parent_project=None, parent_version=None, parent_uuid=None,
             includeALL=True,
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=True, verify=True, safeSleep=3):
+            wait=True, verify=True, safeSleep=3
+    ):
         """
         Clones an existing project and uploads a new SBOM document into it, in one swift operation.
 
@@ -1156,6 +1178,7 @@ class Auditor:
         bom_token = Auditor.read_upload_bom(
             host, key, project_name=None, version=None,
             filename=filename, auto_create=False, project_uuid=new_project_uuid,
+            parent_project=parent_project, parent_version=parent_version, parent_uuid=parent_uuid,
             wait=wait, verify=verify)
 
         assert (bom_token is not None and bom_token != "")
