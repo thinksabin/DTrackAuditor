@@ -310,9 +310,17 @@ class DTrackClient:
             project_id=project_id,
             verify=self.ssl_verify)
 
-    def get_project_list(self):
+    def get_project_list(
+            self,
+            project_name=None,
+            exclude_inactive=False,
+            exclude_children=False
+    ):
         return Auditor.get_project_list(
             host=self.base_url, key=self.api_key,
+            project_name=project_name,
+            exclude_inactive=exclude_inactive,
+            exclude_children=exclude_children,
             verify=self.ssl_verify)
 
     def get_project_without_version_id(self, project_name, version):
@@ -329,7 +337,12 @@ class DTrackClient:
             version=version,
             verify=self.ssl_verify)
 
-    def read_upload_bom(self, project_name, version, filename, auto_create, project_id=None, wait=False):
+    def read_upload_bom(
+            self,
+            project_name, version, filename, auto_create,
+            project_id=None,
+            parent_project=None, parent_version=None, parent_id=None,
+            wait=False):
         return Auditor.read_upload_bom(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
@@ -337,6 +350,9 @@ class DTrackClient:
             filename=filename,
             auto_create=auto_create,
             project_uuid=project_id,
+            parent_project=parent_project,
+            parent_version=parent_version,
+            parent_uuid=parent_id,
             wait=wait, verify=self.ssl_verify)
 
     def clone_project_by_uuid(
@@ -398,6 +414,7 @@ class DTrackClient:
             old_project_name=None, old_project_version=None,
             activate_old=None, activate_new=None,
             deleteExistingClone=False,
+            parent_project=None, parent_version=None, parent_id=None,
             includeALL=True,
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
@@ -414,6 +431,9 @@ class DTrackClient:
             activate_old=activate_old,
             activate_new=activate_new,
             deleteExistingClone=deleteExistingClone,
+            parent_project=parent_project,
+            parent_version=parent_version,
+            parent_uuid=parent_id,
             includeALL=includeALL,
             includeACL=includeACL,
             includeAuditHistory=includeAuditHistory,
@@ -720,13 +740,43 @@ class Auditor:
         return json.loads(r.text)
 
     @staticmethod
-    def get_project_list(host, key, verify=True):
-        """ Return a dictionary with all known projects, or raise exceptions
-        upon errors. """
+    def get_project_list(
+            host, key,
+            project_name=None,
+            exclude_inactive=False,
+            exclude_children=False,
+            verify=True
+    ):
+        """ Return a list of dictionaries with basic information about
+        all known projects (optionally constrained to one `project_name`),
+        or raise exceptions upon errors.
+        Further options are to exclude_inactive and/or exclude_children.
+        """
         assert (host is not None and host != "")
         assert (key is not None and key != "")
+        assert (project_name is None or project_name != "")
 
         url = host + API_PROJECT
+        urlsep = "?"
+        if project_name is not None:
+            url += "{}name={}".format(urlsep, project_name)
+            urlsep = "&"
+
+        if isinstance(exclude_inactive, bool):
+            url += "{}excludeInactive={}".format(urlsep, exclude_inactive)
+            urlsep = "&"
+
+        # FIXME: As of DT 4.9.0 it seems the `onlyRoot=bool` handling is
+        #  inverted vs. its documentation ("true" returns root and child
+        #  projects, "false" returns only the root). If this gets fixed
+        #  by upstream later (or behaved differently in other versions)
+        #  we may want to query get_dependencytrack_version(), and maybe
+        #  cache it for each "host", so we would only invert the boolean
+        #  for some range of server versions...
+        if isinstance(exclude_children, bool):
+            url += "{}onlyRoot={}".format(urlsep, not exclude_children)
+            #urlsep = "&"
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
