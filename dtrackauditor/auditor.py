@@ -141,6 +141,12 @@ class DTrackClient:
 
         return val
 
+    def close_request_session(self, catchExceptions=True):
+        # Not making this a static method, in case we would
+        # eventually explicitly provide "requests.session()"
+        # objects for a client and the calls it makes.
+        Auditor.close_request_session(catchExceptions)
+
     def normalizeSslVerify(self):
         if self.ssl_verify is None:
             if self.base_url is None:
@@ -1281,3 +1287,32 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 2:
             print(response_dict)
         return response_dict
+
+    @staticmethod
+    def close_request_session(catchExceptions=True):
+        """
+        To err on the safe side (e.g. avoid "too many open files") the
+        consumer code may want to close the HTTP client sessions.
+
+        Note we may not want to do this after each and every request
+        (e.g. inside the methods above), since they might benefit
+        under the hood from connection pooling or when the server
+        supports multiple queries per TCP session.
+
+        For more details see e.g.
+        https://stackoverflow.com/questions/10115126/python-requests-close-http-connection
+
+        This method allows the consumer code to not bother about the
+        classes needed for HTTP client implementation in DTrackAuditor.
+
+        The catchExceptions parameter tells this method to try/except
+        and so not propagate any errors to consumer (making this a
+        safer but only best-effort activity).
+        """
+        if catchExceptions:
+            try:
+                requests.session().close()
+            except Exception as ignored:
+                pass
+        else:
+            requests.session().close()
