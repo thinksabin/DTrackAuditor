@@ -16,6 +16,9 @@ DTrackAuditor is the python script to facilitate usage of [DependencyTrack](http
 5. Check policy violations and fail if any found.
 6. Return 0 or 1 exit status for Auto mode.
 
+### Recommended usage
+* For the latest update use clone this repo and use it as your preference.
+
 ### Quick Install
 
 * Pypi
