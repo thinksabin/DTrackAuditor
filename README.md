@@ -47,6 +47,10 @@ python3 dtrackauditor.py \
     -f myweb/target/bom.xml \
     -a
 ```
+
+```
+(.venv) PS C:\Users\dells\OneDrive\Documents\GitHub\DTrackAuditor\dtrackauditor> ..\.venv\Scripts\python.exe .\dtrackauditor.py -a -u 'http://mydtrack.local:8080' -k 'mydtrackapikey' -p ddweb -v 1.0.0 -f .\test\bom.xml --wait
+```
 If environment variable for `DTRACK_SERVER` and `DTRACK_API_KEY` are present then the usage can be direct:
 
 ```
