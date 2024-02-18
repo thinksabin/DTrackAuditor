@@ -4,8 +4,8 @@ DTrackAuditor is the python script to facilitate usage of [DependencyTrack](http
 
 # Development and Tests
 
-* python 3.10.6
-* DependencyTrack 4.7
+* python 3.11.8
+* DependencyTrack 4.10
 
 ### Features  
 
