@@ -1,3 +1,5 @@
+[![Scorecard supply-chain security](https://github.com/thinksabin/DTrackAuditor/actions/workflows/scorecard.yml/badge.svg)](https://github.com/thinksabin/DTrackAuditor/actions/workflows/scorecard.yml)
+
 # DTrackAuditor
 
 DTrackAuditor is the python script to facilitate usage of [DependencyTrack](https://dependencytrack.org/) in the CI, optionally failing the build based on different parameters.
