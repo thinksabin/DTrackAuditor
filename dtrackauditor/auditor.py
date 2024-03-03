@@ -211,18 +211,18 @@ class DTrackClient:
             self.base_url = os.environ.get(base_url_varname, base_url_default)
             if self.base_url is None or len(self.base_url) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0:
-                    print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % base_url)
+                    print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % self.base_url)
 
         if api_key_varname is not None:
             self.api_key = os.environ.get(api_key_varname, api_key_default)
             if (self.api_key is None or len(self.api_key) == 0) and Auditor.DEBUG_VERBOSITY > 0:
-                print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % api_key)
+                print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % self.api_key)
 
         if ssl_verify_varname is not None:
             self.ssl_verify = os.environ.get(ssl_verify_varname, ssl_verify_default)
             if self.ssl_verify is None or len(self.ssl_verify) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0 and str(self.base_url).lower().startswith('https://'):
-                    print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % ssl_verify)
+                    print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % self.ssl_verify)
 
         self.normalize()
 
@@ -660,27 +660,38 @@ class Auditor:
 
         project_findings = Auditor.get_project_findings(host, key, project_uuid, verify=verify)
         severity_scores = Auditor.get_project_finding_severity(project_findings)
-        print(severity_scores)
+        print("severity_scores,  ",severity_scores)
 
         vuln_details = list(map(lambda f: Auditor.get_issue_details(f), project_findings))
 
         if show_details == 'TRUE' or show_details == 'ALL':
             for items in vuln_details:
                 print(items)
-
+# the condition for checking rules  i.e. -r critical:1:false,high:2:false,medium:10:false,low:10:false
         for rule in rules:
             severity, count, fail = rule.split(':')
-            fail = True
-            if fail == 'false':
-                fail = False
+            severity = severity.strip()
+            count = count.strip()
+            fail = fail.strip()
+
+            #fail = True
+            if fail == 'True' or fail == 'true':
+                fail = 'True'
+            # not failing by default
+            else:
+                fail = 'False'
+
             s_issue_count = severity_scores.get(severity.upper())
+
             if s_issue_count is None:
                 continue
             if s_issue_count >= int(count):
-                message = "Threshold for %s severity issues exceeded." % severity.upper()
-                if fail is True:
+                message = "Threshold for {severity_category} severity issues exceeded. Failing as per instructed rules (-r)".format(severity_category=severity.upper())
+                if fail == 'True':
                     raise AuditorException(message)
-                print(message)
+                    print(message)
+                else:
+                    continue
 
         print('Vulnerability audit resulted in no violations.')
 
