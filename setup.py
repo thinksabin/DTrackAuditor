@@ -17,11 +17,11 @@ DESCRIPTION = 'Improved client for OWASP DependencyTrack usage in CI CD.'
 URL = 'https://github.com/thinksabin/DTrackAuditor'
 AUTHOR = 'thinksabin'
 REQUIRES_PYTHON = '>=3.7.0'
-VERSION = '1.2.4'
+VERSION = '1.3.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-     'requests', 'polling'
+     'requests', 'polling','certifi'
 ]
 
 # What packages are optional?
@@ -121,7 +121,8 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10'
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11'
     ],
     # $ setup.py publish support.
     cmdclass={
