@@ -20,3 +20,9 @@ jobs:
           input: ./requirements.txt
           output: ./bom.json
           format: json
+          
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: sbom
+          path: ./bom.json
