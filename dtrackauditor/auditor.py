@@ -211,18 +211,18 @@ class DTrackClient:
             self.base_url = os.environ.get(base_url_varname, base_url_default)
             if self.base_url is None or len(self.base_url) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0:
-                    print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % self.base_url)
+                    print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % base_url_varname)
 
         if api_key_varname is not None:
             self.api_key = os.environ.get(api_key_varname, api_key_default)
             if (self.api_key is None or len(self.api_key) == 0) and Auditor.DEBUG_VERBOSITY > 0:
-                print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % self.api_key)
+                print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % api_key_varname)
 
         if ssl_verify_varname is not None:
             self.ssl_verify = os.environ.get(ssl_verify_varname, ssl_verify_default)
             if self.ssl_verify is None or len(self.ssl_verify) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0 and str(self.base_url).lower().startswith('https://'):
-                    print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % self.ssl_verify)
+                    print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % ssl_verify_varname)
 
         self.normalize()
 
