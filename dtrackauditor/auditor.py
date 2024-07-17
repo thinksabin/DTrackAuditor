@@ -667,7 +667,9 @@ class Auditor:
         if show_details == 'TRUE' or show_details == 'ALL':
             for items in vuln_details:
                 print(items)
-# the condition for checking rules  i.e. -r critical:1:false,high:2:false,medium:10:false,low:10:false
+
+        # the condition for checking rules, i.e.
+        #   -r critical:1:false,high:2:false,medium:10:false,low:10:false
         for rule in rules:
             severity, count, fail = rule.split(':')
             severity = severity.strip()
