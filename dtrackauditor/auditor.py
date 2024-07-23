@@ -1164,13 +1164,18 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        r = requests.get(url, headers=headers, verify=verify)
-        if r.status_code != 200:
-            if Auditor.DEBUG_VERBOSITY > 0:
-                print(f"Cannot get list of components in project: {r.status_code} {r.reason}")
-            # TODO? raise AuditorRESTAPIException("Cannot get list of components in project", r)
-            return {}
-        return json.loads(r.text)
+
+        r = Auditor.get_paginated(url, headers=headers, verify=verify)
+        if r is not None and type(r) is requests.Response:
+            if r.status_code != 200:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print(f"Cannot get list of components in project: {r.status_code} {r.reason}")
+                # TODO? raise AuditorRESTAPIException("Cannot get list of components in project", r)
+                return {}
+            return json.loads(r.text)
+
+        # None or a type parsed from JSON
+        return r
 
     @staticmethod
     def get_project_properties_list(host, key, project_id, verify=True):
