@@ -11,10 +11,17 @@ from pathlib import Path
 API_PROJECT = '/api/v1/project'
 API_PROJECT_CLONE = '/api/v1/project/clone'
 API_PROJECT_LOOKUP = '/api/v1/project/lookup'
-API_PROJECT_FINDING = '/api/v1/finding/project'
+API_PROJECT_FINDING = '/api/v1/finding/project/%s'
+API_PROJECT_FINDING_EXPORT = '/api/v1/finding/project/%s/export'
+API_PROJECT_PROPERTIES = '/api/v1/project/%s/property'
+API_PROJECT_COMPONENTS = '/api/v1/component/project/%s'
+API_COMPONENT = '/api/v1/component'
+API_COMPONENT_GRAPH_IN_PROJECT = '/api/v1/component/%s/dependencyGraph/%s'
 API_BOM_UPLOAD = '/api/v1/bom'
 API_BOM_TOKEN = '/api/v1/bom/token'
 API_POLICY_VIOLATIONS = '/api/v1/violation/project/%s'
+API_ANALYSIS_VULNERABILITY = '/api/v1/analysis'
+API_ANALYSIS_POLICY_VIOLATION = '/api/v1/violation/analysis'
 API_VERSION = '/api/version'
 
 class AuditorException(Exception):
@@ -382,6 +389,76 @@ class DTrackClient:
 
     def get_project_findings(self, project_id):
         retval = Auditor.get_project_findings(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_findings_export(self, project_id):
+        retval = Auditor.get_project_findings_export(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_vulnerability_analysis(self, component_id, vulnerability_id):
+        retval = Auditor.get_component_vulnerability_analysis(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            vulnerability_id=vulnerability_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_violation_analysis(self, component_id, violation_id):
+        retval = Auditor.get_component_violation_analysis(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            violation_id=violation_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component(self, component_id, includeRepositoryMetaData=None):
+        retval = Auditor.get_component(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            includeRepositoryMetaData=includeRepositoryMetaData,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_graph_in_project(self, component_id, project_id):
+        retval = Auditor.get_component_graph_in_project(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_components_list(
+            self,
+            project_id,
+            only_outdated=False,
+            only_direct=False
+    ):
+        retval = Auditor.get_project_components_list(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            only_outdated=only_outdated,
+            only_direct=only_direct,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_properties_list(
+            self,
+            project_id
+    ):
+        retval = Auditor.get_project_properties_list(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
             verify=self.ssl_verify)
@@ -843,12 +920,19 @@ class Auditor:
         return severity_count
 
     @staticmethod
-    def get_project_findings(host, key, project_id, verify=True):
+    def get_project_findings(host, key, project_id, suppressed=None, verify=True):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
 
-        url = host + API_PROJECT_FINDING + '/{}'.format(project_id)
+        url = host + (API_PROJECT_FINDING % project_id)
+        if suppressed is True:
+            url = url + "?suppressed=true"
+        elif suppressed is False:
+            url = url + "?suppressed=false"
+        # else server default
+        # NOTE: seems to have no effect IRL
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
@@ -858,6 +942,172 @@ class Auditor:
             if Auditor.DEBUG_VERBOSITY > 0:
                 print(f"Cannot get project findings: {r.status_code} {r.reason}")
             # TODO? raise AuditorRESTAPIException("Cannot get project findings", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_project_findings_export(host, key, project_id, verify=True):
+        # Note: get_project_findings_export() gives similar info to
+        # that from get_project_findings(), just encased deeper into
+        # another structure (also has project metadata) and differently
+        # represented timestamps (string vs number). It also does
+        # not have parameters like "source" and "suppressed" and
+        # supposedly reports everything there is to know.
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_FINDING_EXPORT % project_id)
+        # Note: export has no parameters, such as "suppressed"
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot export project findings: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot export project findings", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component_vulnerability_analysis(host, key, component_id, vulnerability_id, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+        assert (vulnerability_id is not None and vulnerability_id != "")
+
+        url = host + API_ANALYSIS_VULNERABILITY + ("?component=%s&vulnerability=%s"% (component_id, vulnerability_id))
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component vulnerability analysis: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component vulnerability analysis", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component_violation_analysis(host, key, component_id, violation_id, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+        assert (violation_id is not None and violation_id != "")
+
+        url = host + API_ANALYSIS_POLICY_VIOLATION + ("?component=%s&policyViolation=%s"% (component_id, violation_id))
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component policy violation analysis: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component policy violation analysis", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component(host, key, component_id, includeRepositoryMetaData=None, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+
+        url = host + API_COMPONENT + "/{}".format(component_id)
+        if includeRepositoryMetaData is True:
+            url = url + "?includeRepositoryMetaData=true"
+        elif includeRepositoryMetaData is False:
+            url = url + "?includeRepositoryMetaData=false"
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component_graph_in_project(host, key, component_id, project_id, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + API_COMPONENT_GRAPH_IN_PROJECT % (project_id, component_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component graph info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component graph info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_project_components_list(
+            host, key,
+            project_id,
+            only_outdated=False,
+            only_direct=False,
+            verify=True
+    ):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + API_PROJECT_COMPONENTS % (project_id)
+
+        urlsep = "?"
+        if isinstance(only_outdated, bool):
+            url += "{}onlyOutdated={}".format(urlsep, str(only_outdated).lower())
+            urlsep = "&"
+
+        if isinstance(only_direct, bool):
+            url += "{}onlyDirect={}".format(urlsep, str(only_direct).lower())
+            #urlsep = "&"
+
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get list of components in project: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get list of components in project", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_project_properties_list(host, key, project_id, verify=True):
+        """ Look up a list of project properties by its UUID.
+        """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_PROPERTIES % project_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project properties: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get project properties", r)
             return {}
         return json.loads(r.text)
 
