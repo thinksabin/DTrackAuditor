@@ -640,6 +640,88 @@ class Auditor:
     while using same method names). """
 
     @staticmethod
+    def get_paginated(url, headers, verify=True):
+        """ Get a response from paginated API calls.
+
+        Note this normally returns a "requests.Response" object, if the
+        reply was short (whether successful or not), except when we had
+        to go query the API page by page and ended up with the result
+        of JSON parsing (normally a list) if all pages were HTTP-200.
+
+        See also:
+
+        * https://github.com/DependencyTrack/dependency-track/issues/209
+        * https://github.com/DependencyTrack/dependency-track/discussions/1851
+        * https://github.com/DependencyTrack/dependency-track/pull/3625
+        """
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            return r
+
+        try:
+            if "X-Total-Count" not in r.headers:
+                return r
+        except Exception as ignored:
+            # Not a dict or rather CaseInsensitiveDict
+            return r
+
+        # This endpoint supports pagination
+        total_count = -1
+        try:
+            total_count = int(r.headers["X-Total-Count"])
+        except ValueError as ignored:
+            return r
+
+        if total_count < 100:
+            # Default page size is 100
+            return r
+
+        try:
+            obj = json.loads(r.text)
+            if len(obj) == total_count:
+                return obj
+        except Exception as ignored:
+            pass
+
+        if "?" in url:
+            paged_url_base = url + "&"
+        else:
+            paged_url_base = url + "?"
+
+        # Luckily, we can usually tell the server to give us all the
+        # tens of thousands of answers in one go:
+        paged_url = paged_url_base + "page=1&limit={}".format(total_count)
+        r = requests.get(paged_url, headers=headers, verify=verify)
+        if r.status_code == 200:
+            return r
+
+        # ...but if not - gotta really loop page by page and return
+        # directly the JSON object as we can not set or replace a
+        # "response.text" attribute value. Note that each DT REST API
+        # page returns a complete valid JSON list with some "limit"
+        # entries in it. We should not concatenate the raw strings!
+        # And that this is often slower than getting one big reply,
+        # so we at least try with larger pages!..
+        obj = []
+        n = 0
+        pagesize = 1000
+        while n * pagesize < total_count:
+            # 1-based count
+            n = n + 1
+            paged_url = paged_url_base + "page={}&limit={}".format(n, pagesize)
+            r = requests.get(paged_url, headers=headers, verify=verify)
+            if r.status_code != 200:
+                return r
+            pageobj = json.loads(r.text)
+            obj.extend(pageobj)
+            if len(pageobj) < pagesize:
+                break
+            if len(obj) >= total_count:
+                break
+
+        return obj
+
+    @staticmethod
     def poll_response(response):
         if Auditor.DEBUG_VERBOSITY > 3:
             print(AuditorRESTAPIException.stringify("poll_response()", response))
