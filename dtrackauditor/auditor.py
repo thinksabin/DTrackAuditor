@@ -17,6 +17,8 @@ API_PROJECT_PROPERTIES = '/api/v1/project/%s/property'
 API_PROJECT_COMPONENTS = '/api/v1/component/project/%s'
 API_COMPONENT = '/api/v1/component'
 API_COMPONENT_GRAPH_IN_PROJECT = '/api/v1/component/%s/dependencyGraph/%s'
+API_COMPONENT_DEPENDENCIES = '/api/v1/dependencyGraph/component/%s/directDependencies'
+API_PROJECT_DEPENDENCIES = '/api/v1/dependencyGraph/project/%s/directDependencies'
 API_BOM_UPLOAD = '/api/v1/bom'
 API_BOM_TOKEN = '/api/v1/bom/token'
 API_POLICY_VIOLATIONS = '/api/v1/violation/project/%s'
@@ -434,6 +436,22 @@ class DTrackClient:
         retval = Auditor.get_component_graph_in_project(
             host=self.base_url, key=self.api_key,
             component_id=component_id,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_dependencies(self, component_id):
+        retval = Auditor.get_component_dependencies(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_dependencies(self, project_id):
+        retval = Auditor.get_project_dependencies(
+            host=self.base_url, key=self.api_key,
             project_id=project_id,
             verify=self.ssl_verify)
         self.auto_close_request_session()
@@ -1125,6 +1143,45 @@ class Auditor:
         assert (project_id is not None and project_id != "")
 
         url = host + API_COMPONENT_GRAPH_IN_PROJECT % (project_id, component_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component graph info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component graph info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component_dependencies(host, key, component_id, verify=True):
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+
+        url = host + API_COMPONENT_DEPENDENCIES % (component_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component graph info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component graph info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_project_dependencies(host, key, project_id, verify=True):
+        """ Should also be available from initial project lookup, as a string 'dependencies' with JSON in it """
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + API_PROJECT_DEPENDENCIES % (project_id)
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
