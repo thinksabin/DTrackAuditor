@@ -448,7 +448,7 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3
+            wait=True, safeSleep=3
     ):
         retval = Auditor.clone_project_by_uuid(
             host=self.base_url, key=self.api_key,
@@ -473,7 +473,7 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3
+            wait=True, safeSleep=3
     ):
         retval = Auditor.clone_project_by_name_version(
             host=self.base_url, key=self.api_key,
@@ -1066,7 +1066,7 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, verify=True, safeSleep=3
+            wait=True, verify=True, safeSleep=3
     ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
@@ -1075,6 +1075,8 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
+
+        old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
 
         # Note that DT does not constrain the ability to assign arbitrary
         # values (which match the schema) to project name and version -
@@ -1156,7 +1158,19 @@ class Auditor:
                 pass
 
         if new_project_uuid is not None and len(new_project_uuid) > 0 and wait:
-            Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+            new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+            try:
+                old_count = old_project_version_info["metrics"]["components"]
+                if old_count > 0:
+                    new_count = new_project_version_info["metrics"]["components"]
+                    while new_count < old_count:
+                        sleep(5)
+                        new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+                        new_count = new_project_version_info["metrics"]["components"]
+            except Exception as ex:
+                # Could not pass the dict?
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Could not poll and wait for new project to have same component count as the old instance: %s" % (str(ex)))
 
         if new_name is not None and len(new_name) > 0 and (old_project_obj is None or old_project_obj.get("name") != new_name):
             if new_project_uuid is None:
@@ -1183,7 +1197,7 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, verify=True, safeSleep=3
+            wait=True, verify=True, safeSleep=3
     ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
