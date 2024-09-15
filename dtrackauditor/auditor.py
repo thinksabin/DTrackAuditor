@@ -686,7 +686,10 @@ class Auditor:
             elif result.status_code == 404:
                 if Auditor.DEBUG_VERBOSITY > 2:
                     print(f"Deletion request for project uuid {project_uuid} was gratuitous (no such object already): {result.status_code} {result.reason} => {result.text}")
-                return
+                try:
+                    return json.loads(result.text)
+                except Exception as ignored:
+                    return None
             else:
                 if Auditor.DEBUG_VERBOSITY > 2:
                     print(f"Deletion request for project uuid {project_uuid} failed: {result.status_code} {result.reason} => {result.text}")
@@ -708,6 +711,12 @@ class Auditor:
             if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"OK project uuid {project_uuid} seems deleted")
 
+        try:
+            return json.loads(result.text)
+        except Exception as ignored:
+            # Something is null, not JSON, etc.
+            return None
+
     @staticmethod
     def delete_project(host, key, project_name, version, wait=True, verify=True):
         assert (host is not None and host != "")
@@ -722,8 +731,8 @@ class Auditor:
         if project_uuid is None or len(project_uuid) < 1:
             if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"UUID of project to delete not found")
-            return
-        Auditor.delete_project_uuid(host, key, project_uuid, wait=wait, verify=verify)
+            return None
+        return Auditor.delete_project_uuid(host, key, project_uuid, wait=wait, verify=verify)
 
     @staticmethod
     def get_issue_details(component):
