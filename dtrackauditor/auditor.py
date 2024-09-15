@@ -73,7 +73,13 @@ class DTrackClient:
 
     Relies on the Auditor class for actual logic. """
 
-    def __init__(self, base_url: str|None = None, api_key: str|None = None, ssl_verify: str|bool|None = None):
+    def __init__(
+            self,
+            base_url: str|None = None,
+            api_key: str|None = None,
+            ssl_verify: str|bool|None = None,
+            auto_close_request_sessions: bool | None = None
+    ):
         """ Initializer from basic string/bool/int values.
         See also initByEnvvars() for follow-up from environment variables (can keep "None" here then).
         """
@@ -91,6 +97,15 @@ class DTrackClient:
         or a string path name to file with server+CA certs).
 
         Note again, that an *optional* TLS certificate chain (server, CA) can be provided here.
+        """
+
+        self.auto_close_request_sessions: bool|None = auto_close_request_sessions
+        """ Call close_request_session() after each wrapped operation?
+
+        Use e.g. if suspecting that this is behind "too many open files").
+
+        Note that normally we do not auto-close them and may benefit from server/client support
+        of multiple queries per TCP session, etc..
         """
 
         self.normalize()
@@ -140,6 +155,28 @@ class DTrackClient:
                         val = meaningOfEmptyString
 
         return val
+
+    def close_request_session(self, catchExceptions=True):
+        # Not making this a static method, in case we would
+        # eventually explicitly provide "requests.session()"
+        # objects for a client and the calls it makes.
+        Auditor.close_request_session(catchExceptions)
+
+    def auto_close_request_session(self, catchExceptions=True):
+        """ Primarily intended for internal use, to optionally
+        close HTTP connections (see auto_close_request_sessions
+        property) after completing the wrapped Dependency-Track
+        operations.
+
+        Hopefully this keeps the requests.session() involved in
+        closer step-lock with the session actually used for those
+        preceding queries that we would now try to close.
+        """
+
+        # None is effectively False, for least surprise and backwards
+        # compatibility. It is not reported in stringification however.
+        if self.auto_close_request_sessions is not None and self.auto_close_request_sessions:
+            self.close_request_session(catchExceptions)
 
     def normalizeSslVerify(self):
         if self.ssl_verify is None:
@@ -201,7 +238,9 @@ class DTrackClient:
             api_key_varname: str|None = 'DTRACK_API_KEY',
             api_key_default: str|None = None,
             ssl_verify_varname: str|None = 'DTRACK_SERVER_CERTCHAIN',
-            ssl_verify_default: str|None = None
+            ssl_verify_default: str|None = None,
+            auto_close_request_session_varname: str|None = 'DTRACK_CLIENT_AUTO_CLOSE_REQUEST_SESSION',
+            auto_close_request_session_default: str|None = None
     ): # -> DTrackClient:
         """ (Re-)initialize settings from environment variables whose names
         are specified by arguments, with optional fallback default values.
@@ -223,6 +262,26 @@ class DTrackClient:
             if self.ssl_verify is None or len(self.ssl_verify) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0 and str(self.base_url).lower().startswith('https://'):
                     print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % ssl_verify_varname)
+
+        # For self.auto_close_request_session():
+        if auto_close_request_session_varname is not None:
+            s = os.environ.get(auto_close_request_session_varname, auto_close_request_session_default)
+            if s is None or len(s) == 0:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print("Auditor.initByEnvvars(): WARNING: no explicit setting for auto-closing of HTTP sessions found via envvar '%s'" % auto_close_request_session_varname)
+                # Use defaults
+                self.auto_close_request_sessions = None
+            else:
+                sl = str(s).lower()
+                if sl in ["false", "no", "off", "0"]:
+                    self.auto_close_request_sessions = False
+                elif sl in ["true", "yes", "on", "1"]:
+                    self.auto_close_request_sessions = True
+                else:
+                    if Auditor.DEBUG_VERBOSITY > 0:
+                        print("Auditor.initByEnvvars(): WARNING: unsupported setting for auto-closing of HTTP sessions found via envvar '%s': %s" % (auto_close_request_session_varname, s))
+                    # Use defaults
+                    self.auto_close_request_sessions = None
 
         self.normalize()
 
@@ -256,59 +315,78 @@ class DTrackClient:
         return self
 
     def __str__(self):
-        return "DTrackClient instance for '%s' identified by '%s'; SSL/TLS verification: %s" % (
-            str(self.base_url), str(self.api_key), str(self.ssl_verify)
+        return "DTrackClient instance for '%s' identified by '%s'; SSL/TLS verification: %s%s" % (
+            str(self.base_url), str(self.api_key), str(self.ssl_verify),
+            ("" if self.auto_close_request_sessions is None else (";%s auto-closing request sessions" % "" if self.auto_close_request_sessions else " NOT"))
         )
 
     def poll_bom_token_being_processed(self, bom_token, wait=True):
-        return Auditor.poll_bom_token_being_processed(
+        retval = Auditor.poll_bom_token_being_processed(
             host=self.base_url, key=self.api_key,
             bom_token=bom_token,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def poll_project_uuid(self, project_id, wait=True):
-        return Auditor.poll_project_uuid(
+        retval = Auditor.poll_project_uuid(
             host=self.base_url, key=self.api_key,
             project_uuid=project_id,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def delete_project_uuid(self, project_id, wait=True):
-        return Auditor.delete_project_uuid(
+        retval = Auditor.delete_project_uuid(
             host=self.base_url, key=self.api_key,
             project_uuid=project_id,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def delete_project(self, project_name, wait=True):
-        return Auditor.delete_project(
+        retval = Auditor.delete_project(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_policy_violations(self, project_id):
-        return Auditor.get_project_policy_violations(
+        retval = Auditor.get_project_policy_violations(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def check_vulnerabilities(self, project_id, rules, show_details):
-        return Auditor.check_vulnerabilities(
+        retval = Auditor.check_vulnerabilities(
             host=self.base_url, key=self.api_key,
             project_uuid=project_id,
             rules=rules,
             show_details=show_details,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def check_policy_violations(self, project_id):
-        return Auditor.check_policy_violations(
-            host=self.base_url, key=self.api_key,
-            project_id=project_id,
-            verify=self.ssl_verify)
+        try:
+            Auditor.check_policy_violations(
+                host=self.base_url, key=self.api_key,
+                project_id=project_id,
+                verify=self.ssl_verify)
+        except Exception as retval:
+            self.auto_close_request_session()
+            raise retval
 
     def get_project_findings(self, project_id):
-        return Auditor.get_project_findings(
+        retval = Auditor.get_project_findings(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_list(
             self,
@@ -316,34 +394,41 @@ class DTrackClient:
             exclude_inactive=False,
             exclude_children=False
     ):
-        return Auditor.get_project_list(
+        retval = Auditor.get_project_list(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             exclude_inactive=exclude_inactive,
             exclude_children=exclude_children,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_without_version_id(self, project_name, version):
-        return Auditor.get_project_without_version_id(
+        retval = Auditor.get_project_without_version_id(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             version=version,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_with_version_id(self, project_name, version):
-        return Auditor.get_project_with_version_id(
+        retval = Auditor.get_project_with_version_id(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             version=version,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def read_upload_bom(
             self,
             project_name, version, filename, auto_create,
             project_id=None,
             parent_project=None, parent_version=None, parent_id=None,
-            wait=False):
-        return Auditor.read_upload_bom(
+            wait=False
+    ):
+        retval = Auditor.read_upload_bom(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             version=version,
@@ -354,6 +439,8 @@ class DTrackClient:
             parent_version=parent_version,
             parent_uuid=parent_id,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def clone_project_by_uuid(
             self, old_project_version_id,
@@ -361,8 +448,9 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3):
-        return Auditor.clone_project_by_uuid(
+            wait=False, safeSleep=3
+    ):
+        retval = Auditor.clone_project_by_uuid(
             host=self.base_url, key=self.api_key,
             old_project_version_uuid=old_project_version_id,
             new_version=new_version,
@@ -376,6 +464,8 @@ class DTrackClient:
             includeTags=includeTags,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def clone_project_by_name_version(
             self, old_project_name, old_project_version,
@@ -383,8 +473,9 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3):
-        return Auditor.clone_project_by_name_version(
+            wait=False, safeSleep=3
+    ):
+        retval = Auditor.clone_project_by_name_version(
             host=self.base_url, key=self.api_key,
             old_project_name=old_project_name,
             old_project_version=old_project_version,
@@ -399,13 +490,17 @@ class DTrackClient:
             includeTags=includeTags,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def set_project_active(self, project_id, active=True, wait=False):
-        return Auditor.set_project_active(
+        retval = Auditor.set_project_active(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
             active=active,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def clone_update_project(
             self, filename, new_version,
@@ -419,8 +514,9 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=True, safeSleep=3):
-        return Auditor.clone_update_project(
+            wait=True, safeSleep=3
+    ):
+        retval = Auditor.clone_update_project(
             host=self.base_url, key=self.api_key,
             filename=filename,
             new_version=new_version,
@@ -443,11 +539,15 @@ class DTrackClient:
             includeTags=includeTags,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_dependencytrack_version(self):
-        return Auditor.get_dependencytrack_version(
+        retval = Auditor.get_dependencytrack_version(
             host=self.base_url, key=self.api_key,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
 
 class Auditor:
@@ -1283,3 +1383,32 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 2:
             print(response_dict)
         return response_dict
+
+    @staticmethod
+    def close_request_session(catchExceptions=True):
+        """
+        To err on the safe side (e.g. avoid "too many open files") the
+        consumer code may want to close the HTTP client sessions.
+
+        Note we may not want to do this after each and every request
+        (e.g. inside the methods above), since they might benefit
+        under the hood from connection pooling or when the server
+        supports multiple queries per TCP session.
+
+        For more details see e.g.
+        https://stackoverflow.com/questions/10115126/python-requests-close-http-connection
+
+        This method allows the consumer code to not bother about the
+        classes needed for HTTP client implementation in DTrackAuditor.
+
+        The catchExceptions parameter tells this method to try/except
+        and so not propagate any errors to consumer (making this a
+        safer but only best-effort activity).
+        """
+        if catchExceptions:
+            try:
+                requests.session().close()
+            except Exception as ignored:
+                pass
+        else:
+            requests.session().close()
