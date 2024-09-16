@@ -426,7 +426,7 @@ class DTrackClient:
             project_name, version, filename, auto_create,
             project_id=None,
             parent_project=None, parent_version=None, parent_id=None,
-            wait=False
+            wait=True
     ):
         retval = Auditor.read_upload_bom(
             host=self.base_url, key=self.api_key,
@@ -1003,7 +1003,7 @@ class Auditor:
         project_name, version, filename, auto_create,
         project_uuid=None,
         parent_project=None, parent_version=None, parent_uuid=None,
-        wait=False, verify=True
+        wait=True, verify=True
     ):
         assert (host is not None and host != "")
         assert (key is not None and key != "")
