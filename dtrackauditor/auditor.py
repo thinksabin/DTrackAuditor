@@ -1049,6 +1049,22 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
+
+        old_project_version_uuid = project_uuid
+        old_project_version_info = None
+        old_lastBOMImport = None
+        try:
+            if old_project_version_uuid is None and project_name is not None and version is not None:
+                old_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+            if old_project_version_uuid is not None:
+                old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
+            if old_project_version_info is not None:
+                old_lastBOMImport = int(old_project_version_info["lastBomImport"])
+        except Exception as ex:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project '{old_project_version_uuid}' (for '{project_name}' '{version}') info details before SBOM upload: {str(ex)}")
+            pass
+
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
             raise AuditorRESTAPIException(f"Cannot upload {filename}", r)
@@ -1056,6 +1072,34 @@ class Auditor:
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
             Auditor.poll_bom_token_being_processed(host, key, bom_token, wait=wait, verify=verify)
+
+        if wait:
+            new_project_version_uuid = old_project_version_uuid
+            new_project_version_info = None
+            new_lastBOMImport = None
+            try:
+                if new_project_version_uuid is None and project_name is not None and version is not None:
+                    # FIXME: ` and auto_create is True` ?
+                    new_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+                if new_project_version_uuid is not None:
+                    new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_version_uuid, True, verify)
+                if new_project_version_info is not None:
+                    # Expecting integer value of Unix epoch in milliseconds, e.g.
+                    #  ...,"lastBomImport":1724506650367,...
+                    new_lastBOMImport = int(new_project_version_info["lastBomImport"])
+            except Exception as ex:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print(f"Cannot get project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details after SBOM upload: {str(ex)}")
+                pass
+
+            if new_lastBOMImport is None or new_lastBOMImport < 1:
+                raise AuditorException(f"Cannot upload {filename}: project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details report a bogus lastBomImport value: {str(new_lastBOMImport)}")
+
+            if old_lastBOMImport is not None and new_lastBOMImport == old_lastBOMImport:
+                raise AuditorException(f"Cannot upload {filename}: project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details report same lastBomImport value as before import: {str(new_lastBOMImport)}")
+
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Uploaded BOM '{filename}' into project '{new_project_version_uuid}' (for '{project_name}' '{version}'), it reports lastBomImport: {str(new_lastBOMImport)} (old one was {str(old_lastBOMImport)}) and token '{bom_token}'")
 
         return bom_token
 
