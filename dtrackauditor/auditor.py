@@ -803,6 +803,7 @@ class Auditor:
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -838,6 +839,7 @@ class Auditor:
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -896,6 +898,8 @@ class Auditor:
 
     @staticmethod
     def delete_project(host, key, project_name, version, wait=True, verify=True):
+        """ Deletes a project instance by specified name and version. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is not None and project_name != "")
@@ -913,6 +917,12 @@ class Auditor:
 
     @staticmethod
     def get_issue_details(component):
+        """ Picks out specific details about a vulnerability associated with
+        a component, returns a dict with keys: "cveid", "purl", "severity_level".
+
+        Used as a helper in check_vulnerabilities() method.
+        """
+
         return {
             'cveid': component.get('vulnerability').get('vulnId'),
             'purl': component.get('component').get('purl'),
@@ -921,6 +931,9 @@ class Auditor:
 
     @staticmethod
     def get_project_policy_violations(host, key, project_id, verify=True):
+        """ Returns a list of policy violations (license etc.) associated with
+        a project instance. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
@@ -940,6 +953,24 @@ class Auditor:
 
     @staticmethod
     def check_vulnerabilities(host, key, project_uuid, rules, show_details, verify=True):
+        """ Legacy of the single-purpose command-line tool :)
+
+        Check if a project instance has associated vulnerabilities, and
+        if their hit-counts under different categories are within ranges
+        specified by "rules" conditions. If specified thresholds are
+        exceeded, an AuditorException is raised with the detail message.
+
+        :param rules:   A list of strings, each with a colon-separated
+                        "severity:count:fail" payload. The "fail" part
+                        may be "true" to require failing this check if
+                        the threshold is exceeded.
+                        NOTE: In the command-line tool this list is
+                        split from a single comma-separated argument like:
+                        -r critical:1:false,high:2:false,medium:10:false,low:10:false
+
+        :param show_details:    "TRUE" or "ALL" to print out vulnerability details
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -985,6 +1016,13 @@ class Auditor:
 
     @staticmethod
     def check_policy_violations(host, key, project_uuid, verify=True):
+        """ Legacy of the single-purpose command-line tool :)
+
+        Check if there are any policy violations. Prints a message and
+        returns if none, or prints details and raises an AuditorException
+        if the count is non-zero.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -1007,6 +1045,13 @@ class Auditor:
 
     @staticmethod
     def get_project_finding_severity(project_findings):
+        """ Accounts severities of each vulnerability associated with all
+        components in a project, returns a dict with keys: "CRITICAL",
+        "HIGH", "MEDIUM", "LOW", "UNASSIGNED".
+
+        Used as a helper in check_vulnerabilities() method.
+        """
+
         severity_count = {
             'CRITICAL': 0,
             'HIGH': 0,
@@ -1021,6 +1066,8 @@ class Auditor:
 
     @staticmethod
     def get_project_findings(host, key, project_id, suppressed=None, verify=True):
+        """ Get findings (vulnerability reports) about a project. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
@@ -1047,12 +1094,15 @@ class Auditor:
 
     @staticmethod
     def get_project_findings_export(host, key, project_id, verify=True):
-        # Note: get_project_findings_export() gives similar info to
-        # that from get_project_findings(), just encased deeper into
-        # another structure (also has project metadata) and differently
-        # represented timestamps (string vs number). It also does
-        # not have parameters like "source" and "suppressed" and
-        # supposedly reports everything there is to know.
+        """ Get findings (vulnerability reports) about a project.
+
+        Note: get_project_findings_export() gives similar info to
+        that from get_project_findings(), just encased deeper into
+        another structure (also has project metadata) and differently
+        represented timestamps (string vs number). It also does
+        not have parameters like "source" and "suppressed" and
+        supposedly reports everything there is to know.
+        """
 
         assert (host is not None and host != "")
         assert (key is not None and key != "")
@@ -1074,6 +1124,9 @@ class Auditor:
 
     @staticmethod
     def get_component_vulnerability_analysis(host, key, component_id, vulnerability_id, verify=True):
+        """ Get detailed information about a specific vulnerability analysis
+        of a specific component by their IDs. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (component_id is not None and component_id != "")
@@ -1094,6 +1147,9 @@ class Auditor:
 
     @staticmethod
     def get_component_violation_analysis(host, key, component_id, violation_id, verify=True):
+        """ Get detailed information about a specific policy violation
+        analysis of a specific component by their IDs. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (component_id is not None and component_id != "")
@@ -1114,6 +1170,8 @@ class Auditor:
 
     @staticmethod
     def get_component(host, key, component_id, includeRepositoryMetaData=None, verify=True):
+        """ Get detailed information about a component. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (component_id is not None and component_id != "")
@@ -1137,6 +1195,13 @@ class Auditor:
 
     @staticmethod
     def get_component_graph_in_project(host, key, component_id, project_id, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Returns the expanded dependency graph to every occurrence of a component.
+
+        Requires permission <strong>VIEW_PORTFOLIO</strong>.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (component_id is not None and component_id != "")
@@ -1157,6 +1222,13 @@ class Auditor:
 
     @staticmethod
     def get_component_dependencies(host, key, component_id, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Returns a list of specific components and services from component UUID.
+
+        Requires permission <strong>VIEW_PORTFOLIO</strong>.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (component_id is not None and component_id != "")
@@ -1176,7 +1248,16 @@ class Auditor:
 
     @staticmethod
     def get_project_dependencies(host, key, project_id, verify=True):
-        """ Should also be available from initial project lookup, as a string 'dependencies' with JSON in it """
+        """ FROM SWAGGER DOC:
+
+        Returns a list of specific components and services from project UUID.
+
+        Requires permission <strong>VIEW_PORTFOLIO</strong>.
+
+        NOTE: This information should also be available from initial project
+        lookup, as a string 'dependencies' with JSON in it.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
@@ -1202,6 +1283,13 @@ class Auditor:
             only_direct=False,
             verify=True
     ):
+        """
+        Get a list of components that comprise the specified project.
+
+        Optionally constrain to only direct dependencies, and/or only those
+        known to be outdated.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
@@ -1236,8 +1324,10 @@ class Auditor:
 
     @staticmethod
     def get_project_properties_list(host, key, project_id, verify=True):
-        """ Look up a list of project properties by its UUID.
         """
+        Look up a list of project properties by its UUID.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
@@ -1263,11 +1353,14 @@ class Auditor:
             exclude_children=False,
             verify=True
     ):
-        """ Return a list of dictionaries with basic information about
+        """
+        Return a list of dictionaries with basic information about
         all known projects (optionally constrained to one `project_name`),
         or raise exceptions upon errors.
+
         Further options are to exclude_inactive and/or exclude_children.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is None or project_name != "")
@@ -1308,7 +1401,8 @@ class Auditor:
 
     @staticmethod
     def get_project_without_version_id(host, key, project_name, version, verify=True):
-        """ Look up a particular project instance by name and version,
+        """
+        Look up a particular project instance by name and version,
         querying for a list of all projects and filtering that.
 
         Returns project UUID or "" upon REST API request HTTP
@@ -1318,6 +1412,7 @@ class Auditor:
         Please see whether the get_project_with_version_id() method
         works for you instead (should be less expensive computationally).
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is not None and project_name != "")
@@ -1338,12 +1433,14 @@ class Auditor:
 
     @staticmethod
     def get_project_with_version_id(host, key, project_name, version, verify=True):
-        """ Look up a particular project instance by name and version,
+        """
+        Look up a particular project instance by name and version,
         using a dedicated REST API call for that purpose.
 
         Returns project UUID or "" empty string upon REST API request
         HTTP error states (may raise exceptions on other types of errors).
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is not None and project_name != "")
@@ -1368,6 +1465,7 @@ class Auditor:
     @staticmethod
     def read_bom_file(filename):
         """ Read original XML or JSON Bom file and re-encode it to DT server's liking. """
+
         assert (filename is not None and filename != "")
 
         if Auditor.DEBUG_VERBOSITY > 2:
@@ -1403,6 +1501,16 @@ class Auditor:
         parent_project=None, parent_version=None, parent_uuid=None,
         wait=False, verify=True
     ):
+        """
+        Read original XML or JSON Bom file, re-encode it to DT server's liking,
+        and upload into specified project instance (name+version), creating one
+        if needed and requested (otherwise, you need to have created it earlier,
+        perhaps by cloning an older version - for that, see clone_update_project()).
+
+        Returns the event token (callers can poll for it, if they chose to not
+        "wait" for completion via method arguments).
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (
@@ -1466,6 +1574,20 @@ class Auditor:
             includeServices=None, includeTags=None,
             wait=False, verify=True, safeSleep=3
     ):
+        """
+        Clone an existing specified project instance (name+version) chosen by
+        its UUID, optionally inheriting existing components, analysis verdicts,
+        etc.
+
+        Can rename the project into a "new_name" if required (e.g. for
+        feature branches), and assign the "new_version" to the clone.
+
+        See also set_project_active() to perhaps deactivate the obsolete
+        revision on the DT server.
+
+        Returns UUID of the new project instance upon success.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_version_uuid is not None and old_project_version_uuid != "")
@@ -1583,6 +1705,12 @@ class Auditor:
             includeServices=None, includeTags=None,
             wait=False, verify=True, safeSleep=3
     ):
+        """
+        This method determines the UUID of an existing project instance
+        by its name and version, and calls clone_project_by_uuid().
+        See that method for detailed description.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_name is not None and old_project_name != "")
@@ -1648,10 +1776,13 @@ class Auditor:
             wait=True, verify=True, safeSleep=3
     ):
         """
-        Clones an existing project and uploads a new SBOM document into it, in one swift operation.
+        Clones an existing project and uploads a new SBOM document into it,
+        in one swift operation.
 
-        TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get fallback name and/or version.
+        TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get
+        fallback name and/or version.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert ((old_project_version_uuid is not None and old_project_version_uuid != "") or
@@ -1767,6 +1898,8 @@ class Auditor:
 
     @staticmethod
     def get_dependencytrack_version(host, key, verify=True):
+        """ Get version information of the Dependency-Track server instance itself. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
 
