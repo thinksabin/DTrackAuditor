@@ -740,28 +740,45 @@ class Auditor:
         return obj
 
     @staticmethod
-    def poll_response(response):
+    def checker_not_processing(response):
+        """ Returns a success if specifically the request successfully (HTTP-200)
+        returned a JSON object with a "processing" keyed entry, and its value is
+        "false" (no processing currently happens for a query, typically by token).
+
+        Used as a helper in polling.poll() as the check_success argument.
+        """
+
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(AuditorRESTAPIException.stringify("poll_response()", response))
+            print(AuditorRESTAPIException.stringify("checker_not_processing()", response))
         if response.status_code != 200:
             return False
         status = json.loads(response.text).get('processing')
         return (status == False)
 
     @staticmethod
-    def uuid_present(response):
+    def checker_uuid_present(response):
+        """ Returns a success if specifically the request successfully (HTTP-200)
+        returned a JSON object with an "uuid" keyed entry, and its value is non-trivial.
+
+        Used as a helper in polling.poll() as the check_success argument.
+        """
+
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(AuditorRESTAPIException.stringify("uuid_present()", response))
+            print(AuditorRESTAPIException.stringify("checker_uuid_present()", response))
         if response.status_code != 200:
             return False
         uuid = json.loads(response.text).get('uuid')
         return (uuid is not None and len(uuid) > 0)
 
     @staticmethod
-    def entity_absent(response):
-        """ Returns a success if specifically the request returned HTTP-404 """
+    def checker_entity_absent(response):
+        """ Returns a success if specifically the request returned HTTP-404.
+
+        Used as a helper in polling.poll() as the check_success argument.
+        """
+
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(AuditorRESTAPIException.stringify("entity_absent()", response))
+            print(AuditorRESTAPIException.stringify("checker_entity_absent()", response))
         if response.status_code == 404:
             return True
         return False
@@ -791,7 +808,7 @@ class Auditor:
                 step=5,
                 poll_forever=(wait if isinstance(wait, bool) else None),
                 timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-                check_success=Auditor.poll_response
+                check_success=Auditor.checker_not_processing
             )
         else:
             result = requests.get(url, headers=headers, verify=verify)
@@ -825,7 +842,7 @@ class Auditor:
                 step=5,
                 poll_forever=(wait if isinstance(wait, bool) else None),
                 timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-                check_success=Auditor.uuid_present
+                check_success=Auditor.checker_uuid_present
             )
         else:
             result = requests.get(url, headers=headers, verify=verify)
@@ -885,7 +902,7 @@ class Auditor:
                 step=5,
                 poll_forever=(wait if isinstance(wait, bool) else False),
                 timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-                check_success=Auditor.entity_absent
+                check_success=Auditor.checker_entity_absent
             )
             if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"OK project uuid {project_uuid} seems deleted")
