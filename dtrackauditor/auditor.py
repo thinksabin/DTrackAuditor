@@ -26,6 +26,7 @@ API_COMPONENT_DEPENDENCIES = '/api/v1/dependencyGraph/component/%s/directDepende
 API_PROJECT_DEPENDENCIES = '/api/v1/dependencyGraph/project/%s/directDependencies'
 API_BOM_UPLOAD = '/api/v1/bom'
 API_BOM_TOKEN = '/api/v1/bom/token'
+API_EVENT_TOKEN = '/api/v1/event/token'
 API_POLICY_VIOLATIONS = '/api/v1/violation/project/%s'
 API_ANALYSIS_VULNERABILITY = '/api/v1/analysis'
 API_ANALYSIS_POLICY_VIOLATION = '/api/v1/violation/analysis'
@@ -336,6 +337,14 @@ class DTrackClient:
 
     def poll_bom_token_being_processed(self, bom_token, wait=True):
         retval = Auditor.poll_bom_token_being_processed(
+            host=self.base_url, key=self.api_key,
+            bom_token=bom_token,
+            wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def poll_event_token_being_processed(self, bom_token, wait=True):
+        retval = Auditor.poll_event_token_being_processed(
             host=self.base_url, key=self.api_key,
             bom_token=bom_token,
             wait=wait, verify=self.ssl_verify)
@@ -812,6 +821,7 @@ class Auditor:
         Requires permission <strong>BOM_UPLOAD</strong>
 
         Deprecated. Use <code>/v1/event/token/{uuid}</code> instead.
+        See poll_event_token_being_processed() for the more generic call.
         """
 
         assert (host is not None and host != "")
@@ -823,6 +833,57 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"Processing bom token uuid is {bom_token}")
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
+            print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+        # NOTE: poll_forever!=False, ever!
+        if wait:
+            result = polling.poll(
+                lambda: requests.get(url, headers=headers, verify=verify),
+                step=5,
+                poll_forever=(wait if isinstance(wait, bool) else None),
+                timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
+                check_success=Auditor.checker_not_processing
+            )
+        else:
+            result = requests.get(url, headers=headers, verify=verify)
+        return json.loads(result.text).get('processing')
+
+    @staticmethod
+    def poll_event_token_being_processed(host, key, event_token, wait=True, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Determines if there are any tasks associated with the token that are
+        being processed, or in the queue to be processed. This endpoint is
+        intended to be used in conjunction with other API calls which return
+        a token for asynchronous tasks (including BOM upload, which has its
+        own deprecated similar endpoint).
+
+        The token can then be queried using this endpoint to determine if the
+        task is complete:
+
+        * A value of <code>true</code> indicates processing is occurring.
+        * A value of <code>false</code> indicates that no processing is
+          occurring for the specified token.
+
+        However, a value of <code>false</code> also does not confirm the
+        token is valid, only that no processing is associated with the
+        specified token.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (event_token is not None and bom_token != "")
+
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print("Waiting for an async event to be processed on dt server ...")
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print(f"Processing event token uuid is {event_token}")
+        url = host + API_EVENT_TOKEN+'/{}'.format(event_token)
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
