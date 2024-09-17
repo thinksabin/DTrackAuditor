@@ -19,6 +19,9 @@ API_PROJECT_LOOKUP = '/api/v1/project/lookup'
 API_PROJECT_FINDING = '/api/v1/finding/project/%s'
 API_PROJECT_FINDING_EXPORT = '/api/v1/finding/project/%s/export'
 API_PROJECT_FINDING_REANALYZE = '/api/v1/finding/project/%s/analyze'
+API_PROJECT_METRICS_REFRESH = '/api/v1/metrics/project/%s/refresh'
+API_COMPONENT_METRICS_REFRESH = '/api/v1/metrics/component/%s/refresh'
+API_PORTFOLIO_METRICS_REFRESH = '/api/v1/metrics/portfolio/%s/refresh'
 API_PROJECT_PROPERTIES = '/api/v1/project/%s/property'
 API_PROJECT_COMPONENTS = '/api/v1/component/project/%s'
 API_COMPONENT = '/api/v1/component'
@@ -424,6 +427,33 @@ class DTrackClient:
         retval = Auditor.request_project_findings_reanalyze(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
+            wait=wait,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_project_metrics_refresh(self, project_id, wait=False):
+        retval = Auditor.request_project_metrics_refresh(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            wait=wait,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_component_metrics_refresh(self, component_id, wait=False):
+        retval = Auditor.request_component_metrics_refresh(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            wait=wait,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_portfolio_metrics_refresh(self, portfolio_id, wait=False):
+        retval = Auditor.request_portfolio_metrics_refresh(
+            host=self.base_url, key=self.api_key,
+            portfolio_id=portfolio_id,
             wait=wait,
             verify=self.ssl_verify)
         self.auto_close_request_session()
@@ -1255,7 +1285,8 @@ class Auditor:
         In current DT Web-UI, this corresponds to "Reanalyze" button on
         the "Audit Vulnerabilities" tab. Note that this differs from the
         refresh button on the "Overview" tab which just re-evaluates the
-        metrics of a project.
+        metrics of a project (see request_project_metrics_refresh() for
+        that action).
 
         There does not seem to be an equivalent for policy violations.
         """
@@ -1282,6 +1313,112 @@ class Auditor:
             Auditor.poll_event_token_being_processed(host, key, event_token, wait=wait, verify=verify)
 
         return event_token
+
+    @staticmethod
+    def request_project_metrics_refresh(host, key, project_id, wait=False, verify=True):
+        """
+        Async operation to refresh metrics (e.g. component, vulnerability
+        and policy alert counts) of a project instance (name+version) by
+        its UUID. The REST API endpoint returns an HTTP code and empty
+        document, so there is currently nothing to actually "wait" for.
+        The method currently returns True if query yielded HTTP-200, or
+        False otherwise.
+
+        NOTE: This operation should not normally be needed with "active"
+        project instances (names+versions), since Dependency-Track server
+        re-scans them regularly, but it may be useful with "not-active"
+        historic ones.
+
+        In current DT Web-UI, this corresponds to the refresh button on
+        the "Overview" tab which re-evaluates the metrics of a project.
+        Note that this differs from the "Reanalyze" button on the "Audit
+        Vulnerabilities" tab which actively compares known vulnerabilities
+        to component metadata (see request_project_findings_reanalyze()
+        for that action).
+
+        Requires permission <strong>PORTFOLIO_MANAGEMENT</strong>
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_METRICS_REFRESH % project_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request refresh of project metrics: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request refresh of project metrics", r)
+            return False
+
+        return True
+
+    @staticmethod
+    def request_component_metrics_refresh(host, key, component_id, wait=False, verify=True):
+        """
+        Async operation to refresh component metrics (e.g. vulnerability
+        and policy alert counts).
+
+        The method currently returns True if query yielded HTTP-200, or
+        False otherwise.
+
+        Requires permission <strong>PORTFOLIO_MANAGEMENT</strong>
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+
+        url = host + (API_COMPONENT_METRICS_REFRESH % component_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request refresh of component metrics: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request refresh of component metrics", r)
+            return False
+
+        return True
+
+    @staticmethod
+    def request_portfolio_metrics_refresh(host, key, portfolio_id, wait=False, verify=True):
+        """
+        Async operation to refresh portfolio metrics (e.g. project,
+        component, vulnerability and policy alert counts).
+
+        The method currently returns True if query yielded HTTP-200,
+        or False otherwise.
+
+        Requires permission <strong>PORTFOLIO_MANAGEMENT</strong>
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (portfolio_id is not None and portfolio_id != "")
+
+        url = host + (API_PORTFOLIO_METRICS_REFRESH % portfolio_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request refresh of portfolio metrics: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request refresh of portfolio metrics", r)
+            return False
+
+        return True
 
     @staticmethod
     def get_component_vulnerability_analysis(host, key, component_id, vulnerability_id, verify=True):
