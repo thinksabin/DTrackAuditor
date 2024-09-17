@@ -8,6 +8,11 @@ import polling
 import requests
 from pathlib import Path
 
+# On your Dependency-Track instance you can open its $ROOTURL/api/swagger.json
+# to see the currently defined endpoints and their query parameters and other
+# details. For JSON payload data types (referenced from Swagger spec) see the
+# respective CycloneDX spec version, e.g. https://cyclonedx.org/docs/1.4/json/
+
 API_PROJECT = '/api/v1/project'
 API_PROJECT_CLONE = '/api/v1/project/clone'
 API_PROJECT_LOOKUP = '/api/v1/project/lookup'
