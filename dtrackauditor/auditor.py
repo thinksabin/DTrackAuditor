@@ -18,6 +18,7 @@ API_PROJECT_CLONE = '/api/v1/project/clone'
 API_PROJECT_LOOKUP = '/api/v1/project/lookup'
 API_PROJECT_FINDING = '/api/v1/finding/project/%s'
 API_PROJECT_FINDING_EXPORT = '/api/v1/finding/project/%s/export'
+API_PROJECT_FINDING_REANALYZE = '/api/v1/finding/project/%s/analyze'
 API_PROJECT_PROPERTIES = '/api/v1/project/%s/property'
 API_PROJECT_COMPONENTS = '/api/v1/component/project/%s'
 API_COMPONENT = '/api/v1/component'
@@ -415,6 +416,15 @@ class DTrackClient:
         retval = Auditor.get_project_findings_export(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_project_findings_reanalyze(self, project_id, wait=False):
+        retval = Auditor.request_project_findings_reanalyze(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            wait=wait,
             verify=self.ssl_verify)
         self.auto_close_request_session()
         return retval
@@ -1228,6 +1238,50 @@ class Auditor:
             # TODO? raise AuditorRESTAPIException("Cannot export project findings", r)
             return {}
         return json.loads(r.text)
+
+    @staticmethod
+    def request_project_findings_reanalyze(host, key, project_id, wait=False, verify=True):
+        """
+        Async operation to refresh vulnerability analysis of a project
+        version. The REST API endpoint returns an operation token which
+        we can poll for to see if it completed if "wait" == True. The
+        token is returned anyway in case of success.
+
+        NOTE: This operation should not normally be needed with "active"
+        project instances (names+versions), since Dependency-Track server
+        re-scans them regularly, but it may be useful with "not-active"
+        historic ones.
+
+        In current DT Web-UI, this corresponds to "Reanalyze" button on
+        the "Audit Vulnerabilities" tab. Note that this differs from the
+        refresh button on the "Overview" tab which just re-evaluates the
+        metrics of a project.
+
+        There does not seem to be an equivalent for policy violations.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_FINDING_REANALYZE % project_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.post(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request re-analysis of project findings: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request re-analysis of project findings", r)
+            return {}
+
+        event_token = json.loads(r.text).get('token')
+        if event_token and wait:
+            Auditor.poll_event_token_being_processed(host, key, event_token, wait=wait, verify=verify)
+
+        return event_token
 
     @staticmethod
     def get_component_vulnerability_analysis(host, key, component_id, vulnerability_id, verify=True):
