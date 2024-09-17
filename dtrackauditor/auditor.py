@@ -790,6 +790,30 @@ class Auditor:
 
     @staticmethod
     def poll_bom_token_being_processed(host, key, bom_token, wait=True, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Determines if there are any tasks associated with the token that are
+        being processed, or in the queue to be processed. This endpoint is
+        intended to be used in conjunction with uploading a supported BOM
+        document.
+
+        Upon upload, a token will be returned. The token can then be queried
+        using this endpoint to determine if any tasks (such as vulnerability
+        analysis) is being performed on the BOM:
+
+        * A value of <code>true</code> indicates processing is occurring.
+        * A value of <code>false</code> indicates that no processing is
+          occurring for the specified token.
+
+        However, a value of <code>false</code> also does not confirm the
+        token is valid, only that no processing is associated with the
+        specified token.
+
+        Requires permission <strong>BOM_UPLOAD</strong>
+
+        Deprecated. Use <code>/v1/event/token/{uuid}</code> instead.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (bom_token is not None and bom_token != "")
@@ -797,7 +821,7 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for bom to be processed on dt server ...")
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(f"Processing token uuid is {bom_token}")
+            print(f"Processing bom token uuid is {bom_token}")
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
         headers = {
             "content-type": "application/json",
