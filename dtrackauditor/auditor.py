@@ -1227,6 +1227,8 @@ class Auditor:
                 # Could not pass the dict?
                 if Auditor.DEBUG_VERBOSITY > 2:
                     print(f"Could not poll and wait for new project to have same component count as the old instance: %s" % (str(ex)))
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"The cloned project+version entity {new_project_uuid} has at least as many components ({new_count}) as the original entity {old_project_version_uuid} ({old_count})")
 
         if new_name is not None and len(new_name) > 0 and (old_project_obj is None or old_project_obj.get("name") != new_name):
             if new_project_uuid is None:
