@@ -1210,11 +1210,19 @@ class Auditor:
             try:
                 old_count = old_project_version_info["metrics"]["components"]
                 if old_count > 0:
-                    new_count = new_project_version_info["metrics"]["components"]
-                    while new_count < old_count:
-                        sleep(5)
-                        new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+                    try:
                         new_count = new_project_version_info["metrics"]["components"]
+                    except Exception as exDict:
+                        new_count = -1
+
+                    while new_count < old_count:
+                        time.sleep(5)
+                        Auditor.request_project_metrics_refresh(host, key, new_project_uuid, wait=wait, verify=verify)
+                        new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+                        try:
+                            new_count = new_project_version_info["metrics"]["components"]
+                        except Exception as exDict:
+                            new_count = -1
             except Exception as ex:
                 # Could not pass the dict?
                 if Auditor.DEBUG_VERBOSITY > 2:
