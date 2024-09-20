@@ -1202,6 +1202,10 @@ class Auditor:
                 pass
 
         if new_project_uuid is not None and len(new_project_uuid) > 0 and wait:
+            # Before DT 4.11, project-cloning is not atomic and
+            # the new instance's component count grows over time
+            # until it hits the original numbers. Only after that
+            # should SBOM upload happen, for example.
             new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
             try:
                 old_count = old_project_version_info["metrics"]["components"]
