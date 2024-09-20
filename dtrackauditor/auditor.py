@@ -877,7 +877,7 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        if Auditor.DEBUG_VERBOSITY > 2:
+        if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
         # NOTE: poll_forever!=False, ever!
@@ -928,7 +928,7 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        if Auditor.DEBUG_VERBOSITY > 2:
+        if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
         # NOTE: poll_forever!=False, ever!
@@ -962,7 +962,7 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        if Auditor.DEBUG_VERBOSITY > 2:
+        if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
         # NOTE: poll_forever!=False, ever!
@@ -1024,6 +1024,7 @@ class Auditor:
         if wait:
             if Auditor.DEBUG_VERBOSITY > 2:
                 print(f"Checking after deletion request for project uuid {project_uuid} ...")
+            if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
                 print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
 
