@@ -885,7 +885,7 @@ class Auditor:
             urlsep = "&"
 
         if isinstance(exclude_inactive, bool):
-            url += "{}excludeInactive={}".format(urlsep, exclude_inactive)
+            url += "{}excludeInactive={}".format(urlsep, str(exclude_inactive).lower())
             urlsep = "&"
 
         # FIXME: As of DT 4.9.0 it seems the `onlyRoot=bool` handling is
@@ -896,7 +896,7 @@ class Auditor:
         #  cache it for each "host", so we would only invert the boolean
         #  for some range of server versions...
         if isinstance(exclude_children, bool):
-            url += "{}onlyRoot={}".format(urlsep, not exclude_children)
+            url += "{}onlyRoot={}".format(urlsep, str(not exclude_children).lower())
             #urlsep = "&"
 
         headers = {
