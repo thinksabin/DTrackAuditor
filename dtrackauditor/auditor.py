@@ -336,7 +336,7 @@ class DTrackClient:
     def __str__(self):
         return "DTrackClient instance for '%s' identified by '%s'; SSL/TLS verification: %s%s" % (
             str(self.base_url), str(self.api_key), str(self.ssl_verify),
-            ("" if self.auto_close_request_sessions is None else (";%s auto-closing request sessions" % "" if self.auto_close_request_sessions else " NOT"))
+            ("" if self.auto_close_request_sessions is None else (";%s auto-closing request sessions" % ("" if self.auto_close_request_sessions else " NOT")))
         )
 
     def poll_bom_token_being_processed(self, bom_token, wait=True):
