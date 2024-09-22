@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         
       - name: Generate Python SBOM
         uses: CycloneDX/gh-python-generate-sbom@v2
@@ -22,7 +22,7 @@ jobs:
           format: json
           
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: sbom
           path: ./bom.json
