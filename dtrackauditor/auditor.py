@@ -575,7 +575,7 @@ class DTrackClient:
             project_name, version, filename, auto_create,
             project_id=None,
             parent_project=None, parent_version=None, parent_id=None,
-            wait=False
+            wait=True
     ):
         retval = Auditor.read_upload_bom(
             host=self.base_url, key=self.api_key,
@@ -597,7 +597,7 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3
+            wait=True, safeSleep=3
     ):
         retval = Auditor.clone_project_by_uuid(
             host=self.base_url, key=self.api_key,
@@ -622,7 +622,7 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3
+            wait=True, safeSleep=3
     ):
         retval = Auditor.clone_project_by_name_version(
             host=self.base_url, key=self.api_key,
@@ -1798,7 +1798,7 @@ class Auditor:
         project_name, version, filename, auto_create,
         project_uuid=None,
         parent_project=None, parent_version=None, parent_uuid=None,
-        wait=False, verify=True
+        wait=True, verify=True
     ):
         """
         Read original XML or JSON Bom file, re-encode it to DT server's liking,
@@ -1854,6 +1854,22 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
+
+        old_project_version_uuid = project_uuid
+        old_project_version_info = None
+        old_lastBOMImport = None
+        try:
+            if old_project_version_uuid is None and project_name is not None and version is not None:
+                old_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+            if old_project_version_uuid is not None:
+                old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
+            if old_project_version_info is not None:
+                old_lastBOMImport = int(old_project_version_info["lastBomImport"])
+        except Exception as ex:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project '{old_project_version_uuid}' (for '{project_name}' '{version}') info details before SBOM upload: {str(ex)}")
+            pass
+
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
             raise AuditorRESTAPIException(f"Cannot upload {filename}", r)
@@ -1861,6 +1877,34 @@ class Auditor:
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
             Auditor.poll_bom_token_being_processed(host, key, bom_token, wait=wait, verify=verify)
+
+        if wait:
+            new_project_version_uuid = old_project_version_uuid
+            new_project_version_info = None
+            new_lastBOMImport = None
+            try:
+                if new_project_version_uuid is None and project_name is not None and version is not None:
+                    # FIXME: ` and auto_create is True` ?
+                    new_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+                if new_project_version_uuid is not None:
+                    new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_version_uuid, True, verify)
+                if new_project_version_info is not None:
+                    # Expecting integer value of Unix epoch in milliseconds, e.g.
+                    #  ...,"lastBomImport":1724506650367,...
+                    new_lastBOMImport = int(new_project_version_info["lastBomImport"])
+            except Exception as ex:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print(f"Cannot get project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details after SBOM upload: {str(ex)}")
+                pass
+
+            if new_lastBOMImport is None or new_lastBOMImport < 1:
+                raise AuditorException(f"Cannot upload {filename}: project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details report a bogus lastBomImport value: {str(new_lastBOMImport)}")
+
+            if old_lastBOMImport is not None and new_lastBOMImport == old_lastBOMImport:
+                raise AuditorException(f"Cannot upload {filename}: project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details report same lastBomImport value as before import: {str(new_lastBOMImport)}")
+
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Uploaded BOM '{filename}' into project '{new_project_version_uuid}' (for '{project_name}' '{version}'), it reports lastBomImport: {str(new_lastBOMImport)} (old one was {str(old_lastBOMImport)}) and token '{bom_token}'")
 
         return bom_token
 
@@ -1871,7 +1915,7 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, verify=True, safeSleep=3
+            wait=True, verify=True, safeSleep=3
     ):
         """
         Clone an existing specified project instance (name+version) chosen by
@@ -1894,6 +1938,8 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
+
+        old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
 
         # Note that DT does not constrain the ability to assign arbitrary
         # values (which match the schema) to project name and version -
@@ -1975,7 +2021,33 @@ class Auditor:
                 pass
 
         if new_project_uuid is not None and len(new_project_uuid) > 0 and wait:
-            Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+            # Before DT 4.11, project-cloning is not atomic and
+            # the new instance's component count grows over time
+            # until it hits the original numbers. Only after that
+            # should SBOM upload happen, for example.
+            new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+            try:
+                old_count = old_project_version_info["metrics"]["components"]
+                if old_count > 0:
+                    try:
+                        new_count = new_project_version_info["metrics"]["components"]
+                    except Exception as exDict:
+                        new_count = -1
+
+                    while new_count < old_count:
+                        time.sleep(5)
+                        Auditor.request_project_metrics_refresh(host, key, new_project_uuid, wait=wait, verify=verify)
+                        new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+                        try:
+                            new_count = new_project_version_info["metrics"]["components"]
+                        except Exception as exDict:
+                            new_count = -1
+            except Exception as ex:
+                # Could not pass the dict?
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Could not poll and wait for new project to have same component count as the old instance: %s" % (str(ex)))
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"The cloned project+version entity {new_project_uuid} has at least as many components ({new_count}) as the original entity {old_project_version_uuid} ({old_count})")
 
         if new_name is not None and len(new_name) > 0 and (old_project_obj is None or old_project_obj.get("name") != new_name):
             if new_project_uuid is None:
@@ -2002,7 +2074,7 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, verify=True, safeSleep=3
+            wait=True, verify=True, safeSleep=3
     ):
         """
         This method determines the UUID of an existing project instance
