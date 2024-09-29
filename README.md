@@ -2,7 +2,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/thinksabin/DTrackAuditor/badge)](https://securityscorecards.dev/viewer/?uri=github.com/thinksabin/DTrackAuditor/)
 # DTrackAuditor
 
-DTrackAuditor is the python script to facilitate usage of [DependencyTrack](https://dependencytrack.org/) in the CI, optionally failing the build based on different parameters.
+DTrackAuditor is the python script to ease usage of [DependencyTrack](https://dependencytrack.org/) in the CI, optionally failing the build based on different parameters.
 
 # Development and Tests
 

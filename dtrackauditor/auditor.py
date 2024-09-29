@@ -8,13 +8,32 @@ import polling
 import requests
 from pathlib import Path
 
+# On your Dependency-Track instance you can open its $ROOTURL/api/swagger.json
+# to see the currently defined endpoints and their query parameters and other
+# details. For JSON payload data types (referenced from Swagger spec) see the
+# respective CycloneDX spec version, e.g. https://cyclonedx.org/docs/1.4/json/
+
 API_PROJECT = '/api/v1/project'
 API_PROJECT_CLONE = '/api/v1/project/clone'
 API_PROJECT_LOOKUP = '/api/v1/project/lookup'
-API_PROJECT_FINDING = '/api/v1/finding/project'
+API_PROJECT_FINDING = '/api/v1/finding/project/%s'
+API_PROJECT_FINDING_EXPORT = '/api/v1/finding/project/%s/export'
+API_PROJECT_FINDING_REANALYZE = '/api/v1/finding/project/%s/analyze'
+API_PROJECT_METRICS_REFRESH = '/api/v1/metrics/project/%s/refresh'
+API_COMPONENT_METRICS_REFRESH = '/api/v1/metrics/component/%s/refresh'
+API_PORTFOLIO_METRICS_REFRESH = '/api/v1/metrics/portfolio/%s/refresh'
+API_PROJECT_PROPERTIES = '/api/v1/project/%s/property'
+API_PROJECT_COMPONENTS = '/api/v1/component/project/%s'
+API_COMPONENT = '/api/v1/component'
+API_COMPONENT_GRAPH_IN_PROJECT = '/api/v1/component/%s/dependencyGraph/%s'
+API_COMPONENT_DEPENDENCIES = '/api/v1/dependencyGraph/component/%s/directDependencies'
+API_PROJECT_DEPENDENCIES = '/api/v1/dependencyGraph/project/%s/directDependencies'
 API_BOM_UPLOAD = '/api/v1/bom'
 API_BOM_TOKEN = '/api/v1/bom/token'
+API_EVENT_TOKEN = '/api/v1/event/token'
 API_POLICY_VIOLATIONS = '/api/v1/violation/project/%s'
+API_ANALYSIS_VULNERABILITY = '/api/v1/analysis'
+API_ANALYSIS_POLICY_VIOLATION = '/api/v1/violation/analysis'
 API_VERSION = '/api/version'
 
 class AuditorException(Exception):
@@ -73,7 +92,13 @@ class DTrackClient:
 
     Relies on the Auditor class for actual logic. """
 
-    def __init__(self, base_url: str|None = None, api_key: str|None = None, ssl_verify: str|bool|None = None):
+    def __init__(
+            self,
+            base_url: str|None = None,
+            api_key: str|None = None,
+            ssl_verify: str|bool|None = None,
+            auto_close_request_sessions: bool | None = None
+    ):
         """ Initializer from basic string/bool/int values.
         See also initByEnvvars() for follow-up from environment variables (can keep "None" here then).
         """
@@ -91,6 +116,15 @@ class DTrackClient:
         or a string path name to file with server+CA certs).
 
         Note again, that an *optional* TLS certificate chain (server, CA) can be provided here.
+        """
+
+        self.auto_close_request_sessions: bool|None = auto_close_request_sessions
+        """ Call close_request_session() after each wrapped operation?
+
+        Use e.g. if suspecting that this is behind "too many open files").
+
+        Note that normally we do not auto-close them and may benefit from server/client support
+        of multiple queries per TCP session, etc..
         """
 
         self.normalize()
@@ -140,6 +174,28 @@ class DTrackClient:
                         val = meaningOfEmptyString
 
         return val
+
+    def close_request_session(self, catchExceptions=True):
+        # Not making this a static method, in case we would
+        # eventually explicitly provide "requests.session()"
+        # objects for a client and the calls it makes.
+        Auditor.close_request_session(catchExceptions)
+
+    def auto_close_request_session(self, catchExceptions=True):
+        """ Primarily intended for internal use, to optionally
+        close HTTP connections (see auto_close_request_sessions
+        property) after completing the wrapped Dependency-Track
+        operations.
+
+        Hopefully this keeps the requests.session() involved in
+        closer step-lock with the session actually used for those
+        preceding queries that we would now try to close.
+        """
+
+        # None is effectively False, for least surprise and backwards
+        # compatibility. It is not reported in stringification however.
+        if self.auto_close_request_sessions is not None and self.auto_close_request_sessions:
+            self.close_request_session(catchExceptions)
 
     def normalizeSslVerify(self):
         if self.ssl_verify is None:
@@ -201,7 +257,9 @@ class DTrackClient:
             api_key_varname: str|None = 'DTRACK_API_KEY',
             api_key_default: str|None = None,
             ssl_verify_varname: str|None = 'DTRACK_SERVER_CERTCHAIN',
-            ssl_verify_default: str|None = None
+            ssl_verify_default: str|None = None,
+            auto_close_request_session_varname: str|None = 'DTRACK_CLIENT_AUTO_CLOSE_REQUEST_SESSION',
+            auto_close_request_session_default: str|None = None
     ): # -> DTrackClient:
         """ (Re-)initialize settings from environment variables whose names
         are specified by arguments, with optional fallback default values.
@@ -211,18 +269,38 @@ class DTrackClient:
             self.base_url = os.environ.get(base_url_varname, base_url_default)
             if self.base_url is None or len(self.base_url) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0:
-                    print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % self.base_url)
+                    print("Auditor.initByEnvvars(): WARNING: no URL found via envvar '%s'" % base_url_varname)
 
         if api_key_varname is not None:
             self.api_key = os.environ.get(api_key_varname, api_key_default)
             if (self.api_key is None or len(self.api_key) == 0) and Auditor.DEBUG_VERBOSITY > 0:
-                print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % self.api_key)
+                print("Auditor.initByEnvvars(): WARNING: no API Key found via envvar '%s'" % api_key_varname)
 
         if ssl_verify_varname is not None:
             self.ssl_verify = os.environ.get(ssl_verify_varname, ssl_verify_default)
             if self.ssl_verify is None or len(self.ssl_verify) == 0:
                 if Auditor.DEBUG_VERBOSITY > 0 and str(self.base_url).lower().startswith('https://'):
-                    print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % self.ssl_verify)
+                    print("Auditor.initByEnvvars(): WARNING: no explicit verification toggle or cert chain found via envvar '%s'" % ssl_verify_varname)
+
+        # For self.auto_close_request_session():
+        if auto_close_request_session_varname is not None:
+            s = os.environ.get(auto_close_request_session_varname, auto_close_request_session_default)
+            if s is None or len(s) == 0:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print("Auditor.initByEnvvars(): WARNING: no explicit setting for auto-closing of HTTP sessions found via envvar '%s'" % auto_close_request_session_varname)
+                # Use defaults
+                self.auto_close_request_sessions = None
+            else:
+                sl = str(s).lower()
+                if sl in ["false", "no", "off", "0"]:
+                    self.auto_close_request_sessions = False
+                elif sl in ["true", "yes", "on", "1"]:
+                    self.auto_close_request_sessions = True
+                else:
+                    if Auditor.DEBUG_VERBOSITY > 0:
+                        print("Auditor.initByEnvvars(): WARNING: unsupported setting for auto-closing of HTTP sessions found via envvar '%s': %s" % (auto_close_request_session_varname, s))
+                    # Use defaults
+                    self.auto_close_request_sessions = None
 
         self.normalize()
 
@@ -256,59 +334,208 @@ class DTrackClient:
         return self
 
     def __str__(self):
-        return "DTrackClient instance for '%s' identified by '%s'; SSL/TLS verification: %s" % (
-            str(self.base_url), str(self.api_key), str(self.ssl_verify)
+        return "DTrackClient instance for '%s' identified by '%s'; SSL/TLS verification: %s%s" % (
+            str(self.base_url), str(self.api_key), str(self.ssl_verify),
+            ("" if self.auto_close_request_sessions is None else (";%s auto-closing request sessions" % ("" if self.auto_close_request_sessions else " NOT")))
         )
 
     def poll_bom_token_being_processed(self, bom_token, wait=True):
-        return Auditor.poll_bom_token_being_processed(
+        retval = Auditor.poll_bom_token_being_processed(
             host=self.base_url, key=self.api_key,
             bom_token=bom_token,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def poll_event_token_being_processed(self, bom_token, wait=True):
+        retval = Auditor.poll_event_token_being_processed(
+            host=self.base_url, key=self.api_key,
+            bom_token=bom_token,
+            wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def poll_project_uuid(self, project_id, wait=True):
-        return Auditor.poll_project_uuid(
+        retval = Auditor.poll_project_uuid(
             host=self.base_url, key=self.api_key,
             project_uuid=project_id,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def delete_project_uuid(self, project_id, wait=True):
-        return Auditor.delete_project_uuid(
+        retval = Auditor.delete_project_uuid(
             host=self.base_url, key=self.api_key,
             project_uuid=project_id,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def delete_project(self, project_name, wait=True):
-        return Auditor.delete_project(
+        retval = Auditor.delete_project(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_policy_violations(self, project_id):
-        return Auditor.get_project_policy_violations(
+        retval = Auditor.get_project_policy_violations(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def check_vulnerabilities(self, project_id, rules, show_details):
-        return Auditor.check_vulnerabilities(
+        retval = Auditor.check_vulnerabilities(
             host=self.base_url, key=self.api_key,
             project_uuid=project_id,
             rules=rules,
             show_details=show_details,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def check_policy_violations(self, project_id):
-        return Auditor.check_policy_violations(
-            host=self.base_url, key=self.api_key,
-            project_id=project_id,
-            verify=self.ssl_verify)
+        try:
+            Auditor.check_policy_violations(
+                host=self.base_url, key=self.api_key,
+                project_id=project_id,
+                verify=self.ssl_verify)
+        except Exception as retval:
+            self.auto_close_request_session()
+            raise retval
 
     def get_project_findings(self, project_id):
-        return Auditor.get_project_findings(
+        retval = Auditor.get_project_findings(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_findings_export(self, project_id):
+        retval = Auditor.get_project_findings_export(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_project_findings_reanalyze(self, project_id, wait=False):
+        retval = Auditor.request_project_findings_reanalyze(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            wait=wait,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_project_metrics_refresh(self, project_id, wait=False):
+        retval = Auditor.request_project_metrics_refresh(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            wait=wait,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_component_metrics_refresh(self, component_id, wait=False):
+        retval = Auditor.request_component_metrics_refresh(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            wait=wait,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def request_portfolio_metrics_refresh(self, portfolio_id, wait=False):
+        retval = Auditor.request_portfolio_metrics_refresh(
+            host=self.base_url, key=self.api_key,
+            portfolio_id=portfolio_id,
+            wait=wait,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_vulnerability_analysis(self, component_id, vulnerability_id):
+        retval = Auditor.get_component_vulnerability_analysis(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            vulnerability_id=vulnerability_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_violation_analysis(self, component_id, violation_id):
+        retval = Auditor.get_component_violation_analysis(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            violation_id=violation_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component(self, component_id, includeRepositoryMetaData=None):
+        retval = Auditor.get_component(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            includeRepositoryMetaData=includeRepositoryMetaData,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_graph_in_project(self, component_id, project_id):
+        retval = Auditor.get_component_graph_in_project(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_component_dependencies(self, component_id):
+        retval = Auditor.get_component_dependencies(
+            host=self.base_url, key=self.api_key,
+            component_id=component_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_dependencies(self, project_id):
+        retval = Auditor.get_project_dependencies(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_components_list(
+            self,
+            project_id,
+            only_outdated=False,
+            only_direct=False
+    ):
+        retval = Auditor.get_project_components_list(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            only_outdated=only_outdated,
+            only_direct=only_direct,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
+
+    def get_project_properties_list(
+            self,
+            project_id
+    ):
+        retval = Auditor.get_project_properties_list(
+            host=self.base_url, key=self.api_key,
+            project_id=project_id,
+            verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_list(
             self,
@@ -316,34 +543,41 @@ class DTrackClient:
             exclude_inactive=False,
             exclude_children=False
     ):
-        return Auditor.get_project_list(
+        retval = Auditor.get_project_list(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             exclude_inactive=exclude_inactive,
             exclude_children=exclude_children,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_without_version_id(self, project_name, version):
-        return Auditor.get_project_without_version_id(
+        retval = Auditor.get_project_without_version_id(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             version=version,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_project_with_version_id(self, project_name, version):
-        return Auditor.get_project_with_version_id(
+        retval = Auditor.get_project_with_version_id(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             version=version,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def read_upload_bom(
             self,
             project_name, version, filename, auto_create,
             project_id=None,
             parent_project=None, parent_version=None, parent_id=None,
-            wait=False):
-        return Auditor.read_upload_bom(
+            wait=True
+    ):
+        retval = Auditor.read_upload_bom(
             host=self.base_url, key=self.api_key,
             project_name=project_name,
             version=version,
@@ -354,6 +588,8 @@ class DTrackClient:
             parent_version=parent_version,
             parent_uuid=parent_id,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def clone_project_by_uuid(
             self, old_project_version_id,
@@ -361,8 +597,9 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3):
-        return Auditor.clone_project_by_uuid(
+            wait=True, safeSleep=3
+    ):
+        retval = Auditor.clone_project_by_uuid(
             host=self.base_url, key=self.api_key,
             old_project_version_uuid=old_project_version_id,
             new_version=new_version,
@@ -376,6 +613,8 @@ class DTrackClient:
             includeTags=includeTags,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def clone_project_by_name_version(
             self, old_project_name, old_project_version,
@@ -383,8 +622,9 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, safeSleep=3):
-        return Auditor.clone_project_by_name_version(
+            wait=True, safeSleep=3
+    ):
+        retval = Auditor.clone_project_by_name_version(
             host=self.base_url, key=self.api_key,
             old_project_name=old_project_name,
             old_project_version=old_project_version,
@@ -399,13 +639,17 @@ class DTrackClient:
             includeTags=includeTags,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def set_project_active(self, project_id, active=True, wait=False):
-        return Auditor.set_project_active(
+        retval = Auditor.set_project_active(
             host=self.base_url, key=self.api_key,
             project_id=project_id,
             active=active,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def clone_update_project(
             self, filename, new_version,
@@ -419,8 +663,9 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=True, safeSleep=3):
-        return Auditor.clone_update_project(
+            wait=True, safeSleep=3
+    ):
+        retval = Auditor.clone_update_project(
             host=self.base_url, key=self.api_key,
             filename=filename,
             new_version=new_version,
@@ -443,11 +688,15 @@ class DTrackClient:
             includeTags=includeTags,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
     def get_dependencytrack_version(self):
-        return Auditor.get_dependencytrack_version(
+        retval = Auditor.get_dependencytrack_version(
             host=self.base_url, key=self.api_key,
             verify=self.ssl_verify)
+        self.auto_close_request_session()
+        return retval
 
 
 class Auditor:
@@ -463,34 +712,158 @@ class Auditor:
     while using same method names). """
 
     @staticmethod
-    def poll_response(response):
+    def get_paginated(url, headers, verify=True):
+        """ Get a response from paginated API calls.
+
+        Note this normally returns a "requests.Response" object, if the
+        reply was short (whether successful or not), except when we had
+        to go query the API page by page and ended up with the result
+        of JSON parsing (normally a list) if all pages were HTTP-200.
+
+        See also:
+
+        * https://github.com/DependencyTrack/dependency-track/issues/209
+        * https://github.com/DependencyTrack/dependency-track/discussions/1851
+        * https://github.com/DependencyTrack/dependency-track/pull/3625
+        """
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            return r
+
+        try:
+            if "X-Total-Count" not in r.headers:
+                return r
+        except Exception as ignored:
+            # Not a dict or rather CaseInsensitiveDict
+            return r
+
+        # This endpoint supports pagination
+        total_count = -1
+        try:
+            total_count = int(r.headers["X-Total-Count"])
+        except ValueError as ignored:
+            return r
+
+        if total_count < 100:
+            # Default page size is 100
+            return r
+
+        try:
+            obj = json.loads(r.text)
+            if len(obj) == total_count:
+                return obj
+        except Exception as ignored:
+            pass
+
+        if "?" in url:
+            paged_url_base = url + "&"
+        else:
+            paged_url_base = url + "?"
+
+        # Luckily, we can usually tell the server to give us all the
+        # tens of thousands of answers in one go:
+        paged_url = paged_url_base + "page=1&limit={}".format(total_count)
+        r = requests.get(paged_url, headers=headers, verify=verify)
+        if r.status_code == 200:
+            return r
+
+        # ...but if not - gotta really loop page by page and return
+        # directly the JSON object as we can not set or replace a
+        # "response.text" attribute value. Note that each DT REST API
+        # page returns a complete valid JSON list with some "limit"
+        # entries in it. We should not concatenate the raw strings!
+        # And that this is often slower than getting one big reply,
+        # so we at least try with larger pages!..
+        obj = []
+        n = 0
+        pagesize = 1000
+        while n * pagesize < total_count:
+            # 1-based count
+            n = n + 1
+            paged_url = paged_url_base + "page={}&limit={}".format(n, pagesize)
+            r = requests.get(paged_url, headers=headers, verify=verify)
+            if r.status_code != 200:
+                return r
+            pageobj = json.loads(r.text)
+            obj.extend(pageobj)
+            if len(pageobj) < pagesize:
+                break
+            if len(obj) >= total_count:
+                break
+
+        return obj
+
+    @staticmethod
+    def checker_not_processing(response):
+        """ Returns a success if specifically the request successfully (HTTP-200)
+        returned a JSON object with a "processing" keyed entry, and its value is
+        "false" (no processing currently happens for a query, typically by token).
+
+        Used as a helper in polling.poll() as the check_success argument.
+        """
+
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(AuditorRESTAPIException.stringify("poll_response()", response))
+            print(AuditorRESTAPIException.stringify("checker_not_processing()", response))
         if response.status_code != 200:
             return False
         status = json.loads(response.text).get('processing')
         return (status == False)
 
     @staticmethod
-    def uuid_present(response):
+    def checker_uuid_present(response):
+        """ Returns a success if specifically the request successfully (HTTP-200)
+        returned a JSON object with an "uuid" keyed entry, and its value is non-trivial.
+
+        Used as a helper in polling.poll() as the check_success argument.
+        """
+
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(AuditorRESTAPIException.stringify("uuid_present()", response))
+            print(AuditorRESTAPIException.stringify("checker_uuid_present()", response))
         if response.status_code != 200:
             return False
         uuid = json.loads(response.text).get('uuid')
         return (uuid is not None and len(uuid) > 0)
 
     @staticmethod
-    def entity_absent(response):
-        """ Returns a success if specifically the request returned HTTP-404 """
+    def checker_entity_absent(response):
+        """ Returns a success if specifically the request returned HTTP-404.
+
+        Used as a helper in polling.poll() as the check_success argument.
+        """
+
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(AuditorRESTAPIException.stringify("entity_absent()", response))
+            print(AuditorRESTAPIException.stringify("checker_entity_absent()", response))
         if response.status_code == 404:
             return True
         return False
 
     @staticmethod
     def poll_bom_token_being_processed(host, key, bom_token, wait=True, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Determines if there are any tasks associated with the token that are
+        being processed, or in the queue to be processed. This endpoint is
+        intended to be used in conjunction with uploading a supported BOM
+        document.
+
+        Upon upload, a token will be returned. The token can then be queried
+        using this endpoint to determine if any tasks (such as vulnerability
+        analysis) is being performed on the BOM:
+
+        * A value of <code>true</code> indicates processing is occurring.
+        * A value of <code>false</code> indicates that no processing is
+          occurring for the specified token.
+
+        However, a value of <code>false</code> also does not confirm the
+        token is valid, only that no processing is associated with the
+        specified token.
+
+        Requires permission <strong>BOM_UPLOAD</strong>
+
+        Deprecated. Use <code>/v1/event/token/{uuid}</code> instead.
+        See poll_event_token_being_processed() for the more generic call.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (bom_token is not None and bom_token != "")
@@ -498,13 +871,13 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for bom to be processed on dt server ...")
         if Auditor.DEBUG_VERBOSITY > 3:
-            print(f"Processing token uuid is {bom_token}")
+            print(f"Processing bom token uuid is {bom_token}")
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
         }
-        if Auditor.DEBUG_VERBOSITY > 2:
+        if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
         # NOTE: poll_forever!=False, ever!
@@ -514,7 +887,58 @@ class Auditor:
                 step=5,
                 poll_forever=(wait if isinstance(wait, bool) else None),
                 timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-                check_success=Auditor.poll_response
+                check_success=Auditor.checker_not_processing
+            )
+        else:
+            result = requests.get(url, headers=headers, verify=verify)
+        return json.loads(result.text).get('processing')
+
+    @staticmethod
+    def poll_event_token_being_processed(host, key, event_token, wait=True, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Determines if there are any tasks associated with the token that are
+        being processed, or in the queue to be processed. This endpoint is
+        intended to be used in conjunction with other API calls which return
+        a token for asynchronous tasks (including BOM upload, which has its
+        own deprecated similar endpoint).
+
+        The token can then be queried using this endpoint to determine if the
+        task is complete:
+
+        * A value of <code>true</code> indicates processing is occurring.
+        * A value of <code>false</code> indicates that no processing is
+          occurring for the specified token.
+
+        However, a value of <code>false</code> also does not confirm the
+        token is valid, only that no processing is associated with the
+        specified token.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (event_token is not None and bom_token != "")
+
+        if Auditor.DEBUG_VERBOSITY > 2:
+            print("Waiting for an async event to be processed on dt server ...")
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print(f"Processing event token uuid is {event_token}")
+        url = host + API_EVENT_TOKEN+'/{}'.format(event_token)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        if Auditor.DEBUG_VERBOSITY > 3:
+            print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
+            print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+        # NOTE: poll_forever!=False, ever!
+        if wait:
+            result = polling.poll(
+                lambda: requests.get(url, headers=headers, verify=verify),
+                step=5,
+                poll_forever=(wait if isinstance(wait, bool) else None),
+                timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
+                check_success=Auditor.checker_not_processing
             )
         else:
             result = requests.get(url, headers=headers, verify=verify)
@@ -526,6 +950,7 @@ class Auditor:
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -537,7 +962,7 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
-        if Auditor.DEBUG_VERBOSITY > 2:
+        if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
         # NOTE: poll_forever!=False, ever!
@@ -547,7 +972,7 @@ class Auditor:
                 step=5,
                 poll_forever=(wait if isinstance(wait, bool) else None),
                 timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-                check_success=Auditor.uuid_present
+                check_success=Auditor.checker_uuid_present
             )
         else:
             result = requests.get(url, headers=headers, verify=verify)
@@ -561,6 +986,7 @@ class Auditor:
         Checks if that info's 'uuid' matches (fails an assert()
         otherwise) and returns the object decoded from JSON.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -586,7 +1012,10 @@ class Auditor:
             elif result.status_code == 404:
                 if Auditor.DEBUG_VERBOSITY > 2:
                     print(f"Deletion request for project uuid {project_uuid} was gratuitous (no such object already): {result.status_code} {result.reason} => {result.text}")
-                return
+                try:
+                    return json.loads(result.text)
+                except Exception as ignored:
+                    return None
             else:
                 if Auditor.DEBUG_VERBOSITY > 2:
                     print(f"Deletion request for project uuid {project_uuid} failed: {result.status_code} {result.reason} => {result.text}")
@@ -595,6 +1024,7 @@ class Auditor:
         if wait:
             if Auditor.DEBUG_VERBOSITY > 2:
                 print(f"Checking after deletion request for project uuid {project_uuid} ...")
+            if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
                 print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
 
@@ -603,13 +1033,21 @@ class Auditor:
                 step=5,
                 poll_forever=(wait if isinstance(wait, bool) else False),
                 timeout=(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None), # raises polling.TimeoutException
-                check_success=Auditor.entity_absent
+                check_success=Auditor.checker_entity_absent
             )
             if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"OK project uuid {project_uuid} seems deleted")
 
+        try:
+            return json.loads(result.text)
+        except Exception as ignored:
+            # Something is null, not JSON, etc.
+            return None
+
     @staticmethod
     def delete_project(host, key, project_name, version, wait=True, verify=True):
+        """ Deletes a project instance by specified name and version. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is not None and project_name != "")
@@ -622,11 +1060,17 @@ class Auditor:
         if project_uuid is None or len(project_uuid) < 1:
             if Auditor.DEBUG_VERBOSITY > 3:
                 print(f"UUID of project to delete not found")
-            return
-        Auditor.delete_project_uuid(host, key, project_uuid, wait=wait, verify=verify)
+            return None
+        return Auditor.delete_project_uuid(host, key, project_uuid, wait=wait, verify=verify)
 
     @staticmethod
     def get_issue_details(component):
+        """ Picks out specific details about a vulnerability associated with
+        a component, returns a dict with keys: "cveid", "purl", "severity_level".
+
+        Used as a helper in check_vulnerabilities() method.
+        """
+
         return {
             'cveid': component.get('vulnerability').get('vulnId'),
             'purl': component.get('component').get('purl'),
@@ -635,6 +1079,9 @@ class Auditor:
 
     @staticmethod
     def get_project_policy_violations(host, key, project_id, verify=True):
+        """ Returns a list of policy violations (license etc.) associated with
+        a project instance. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
@@ -654,6 +1101,24 @@ class Auditor:
 
     @staticmethod
     def check_vulnerabilities(host, key, project_uuid, rules, show_details, verify=True):
+        """ Legacy of the single-purpose command-line tool :)
+
+        Check if a project instance has associated vulnerabilities, and
+        if their hit-counts under different categories are within ranges
+        specified by "rules" conditions. If specified thresholds are
+        exceeded, an AuditorException is raised with the detail message.
+
+        :param rules:   A list of strings, each with a colon-separated
+                        "severity:count:fail" payload. The "fail" part
+                        may be "true" to require failing this check if
+                        the threshold is exceeded.
+                        NOTE: In the command-line tool this list is
+                        split from a single comma-separated argument like:
+                        -r critical:1:false,high:2:false,medium:10:false,low:10:false
+
+        :param show_details:    "TRUE" or "ALL" to print out vulnerability details
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -667,7 +1132,9 @@ class Auditor:
         if show_details == 'TRUE' or show_details == 'ALL':
             for items in vuln_details:
                 print(items)
-# the condition for checking rules  i.e. -r critical:1:false,high:2:false,medium:10:false,low:10:false
+
+        # the condition for checking rules, i.e.
+        #   -r critical:1:false,high:2:false,medium:10:false,low:10:false
         for rule in rules:
             severity, count, fail = rule.split(':')
             severity = severity.strip()
@@ -697,6 +1164,13 @@ class Auditor:
 
     @staticmethod
     def check_policy_violations(host, key, project_uuid, verify=True):
+        """ Legacy of the single-purpose command-line tool :)
+
+        Check if there are any policy violations. Prints a message and
+        returns if none, or prints details and raises an AuditorException
+        if the count is non-zero.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_uuid is not None and project_uuid != "")
@@ -719,6 +1193,13 @@ class Auditor:
 
     @staticmethod
     def get_project_finding_severity(project_findings):
+        """ Accounts severities of each vulnerability associated with all
+        components in a project, returns a dict with keys: "CRITICAL",
+        "HIGH", "MEDIUM", "LOW", "UNASSIGNED".
+
+        Used as a helper in check_vulnerabilities() method.
+        """
+
         severity_count = {
             'CRITICAL': 0,
             'HIGH': 0,
@@ -732,12 +1213,21 @@ class Auditor:
         return severity_count
 
     @staticmethod
-    def get_project_findings(host, key, project_id, verify=True):
+    def get_project_findings(host, key, project_id, suppressed=None, verify=True):
+        """ Get findings (vulnerability reports) about a project. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_id is not None and project_id != "")
 
-        url = host + API_PROJECT_FINDING + '/{}'.format(project_id)
+        url = host + (API_PROJECT_FINDING % project_id)
+        if suppressed is True:
+            url = url + "?suppressed=true"
+        elif suppressed is False:
+            url = url + "?suppressed=false"
+        # else server default
+        # NOTE: seems to have no effect IRL
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
@@ -751,6 +1241,410 @@ class Auditor:
         return json.loads(r.text)
 
     @staticmethod
+    def get_project_findings_export(host, key, project_id, verify=True):
+        """ Get findings (vulnerability reports) about a project.
+
+        Note: get_project_findings_export() gives similar info to
+        that from get_project_findings(), just encased deeper into
+        another structure (also has project metadata) and differently
+        represented timestamps (string vs number). It also does
+        not have parameters like "source" and "suppressed" and
+        supposedly reports everything there is to know.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_FINDING_EXPORT % project_id)
+        # Note: export has no parameters, such as "suppressed"
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot export project findings: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot export project findings", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def request_project_findings_reanalyze(host, key, project_id, wait=False, verify=True):
+        """
+        Async operation to refresh vulnerability analysis of a project
+        version. The REST API endpoint returns an operation token which
+        we can poll for to see if it completed if "wait" == True. The
+        token is returned anyway in case of success.
+
+        NOTE: This operation should not normally be needed with "active"
+        project instances (names+versions), since Dependency-Track server
+        re-scans them regularly, but it may be useful with "not-active"
+        historic ones.
+
+        In current DT Web-UI, this corresponds to "Reanalyze" button on
+        the "Audit Vulnerabilities" tab. Note that this differs from the
+        refresh button on the "Overview" tab which just re-evaluates the
+        metrics of a project (see request_project_metrics_refresh() for
+        that action).
+
+        There does not seem to be an equivalent for policy violations.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_FINDING_REANALYZE % project_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.post(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request re-analysis of project findings: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request re-analysis of project findings", r)
+            return {}
+
+        event_token = json.loads(r.text).get('token')
+        if event_token and wait:
+            Auditor.poll_event_token_being_processed(host, key, event_token, wait=wait, verify=verify)
+
+        return event_token
+
+    @staticmethod
+    def request_project_metrics_refresh(host, key, project_id, wait=False, verify=True):
+        """
+        Async operation to refresh metrics (e.g. component, vulnerability
+        and policy alert counts) of a project instance (name+version) by
+        its UUID. The REST API endpoint returns an HTTP code and empty
+        document, so there is currently nothing to actually "wait" for.
+        The method currently returns True if query yielded HTTP-200, or
+        False otherwise.
+
+        NOTE: This operation should not normally be needed with "active"
+        project instances (names+versions), since Dependency-Track server
+        re-scans them regularly, but it may be useful with "not-active"
+        historic ones.
+
+        In current DT Web-UI, this corresponds to the refresh button on
+        the "Overview" tab which re-evaluates the metrics of a project.
+        Note that this differs from the "Reanalyze" button on the "Audit
+        Vulnerabilities" tab which actively compares known vulnerabilities
+        to component metadata (see request_project_findings_reanalyze()
+        for that action).
+
+        Requires permission <strong>PORTFOLIO_MANAGEMENT</strong>
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_METRICS_REFRESH % project_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request refresh of project metrics: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request refresh of project metrics", r)
+            return False
+
+        return True
+
+    @staticmethod
+    def request_component_metrics_refresh(host, key, component_id, wait=False, verify=True):
+        """
+        Async operation to refresh component metrics (e.g. vulnerability
+        and policy alert counts).
+
+        The method currently returns True if query yielded HTTP-200, or
+        False otherwise.
+
+        Requires permission <strong>PORTFOLIO_MANAGEMENT</strong>
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+
+        url = host + (API_COMPONENT_METRICS_REFRESH % component_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request refresh of component metrics: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request refresh of component metrics", r)
+            return False
+
+        return True
+
+    @staticmethod
+    def request_portfolio_metrics_refresh(host, key, portfolio_id, wait=False, verify=True):
+        """
+        Async operation to refresh portfolio metrics (e.g. project,
+        component, vulnerability and policy alert counts).
+
+        The method currently returns True if query yielded HTTP-200,
+        or False otherwise.
+
+        Requires permission <strong>PORTFOLIO_MANAGEMENT</strong>
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (portfolio_id is not None and portfolio_id != "")
+
+        url = host + (API_PORTFOLIO_METRICS_REFRESH % portfolio_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot request refresh of portfolio metrics: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot request refresh of portfolio metrics", r)
+            return False
+
+        return True
+
+    @staticmethod
+    def get_component_vulnerability_analysis(host, key, component_id, vulnerability_id, verify=True):
+        """ Get detailed information about a specific vulnerability analysis
+        of a specific component by their IDs. """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+        assert (vulnerability_id is not None and vulnerability_id != "")
+
+        url = host + API_ANALYSIS_VULNERABILITY + ("?component=%s&vulnerability=%s"% (component_id, vulnerability_id))
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component vulnerability analysis: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component vulnerability analysis", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component_violation_analysis(host, key, component_id, violation_id, verify=True):
+        """ Get detailed information about a specific policy violation
+        analysis of a specific component by their IDs. """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+        assert (violation_id is not None and violation_id != "")
+
+        url = host + API_ANALYSIS_POLICY_VIOLATION + ("?component=%s&policyViolation=%s"% (component_id, violation_id))
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component policy violation analysis: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component policy violation analysis", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component(host, key, component_id, includeRepositoryMetaData=None, verify=True):
+        """ Get detailed information about a component. """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+
+        url = host + API_COMPONENT + "/{}".format(component_id)
+        if includeRepositoryMetaData is True:
+            url = url + "?includeRepositoryMetaData=true"
+        elif includeRepositoryMetaData is False:
+            url = url + "?includeRepositoryMetaData=false"
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component_graph_in_project(host, key, component_id, project_id, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Returns the expanded dependency graph to every occurrence of a component.
+
+        Requires permission <strong>VIEW_PORTFOLIO</strong>.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + API_COMPONENT_GRAPH_IN_PROJECT % (project_id, component_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component graph info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component graph info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_component_dependencies(host, key, component_id, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Returns a list of specific components and services from component UUID.
+
+        Requires permission <strong>VIEW_PORTFOLIO</strong>.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (component_id is not None and component_id != "")
+
+        url = host + API_COMPONENT_DEPENDENCIES % (component_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component graph info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component graph info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_project_dependencies(host, key, project_id, verify=True):
+        """ FROM SWAGGER DOC:
+
+        Returns a list of specific components and services from project UUID.
+
+        Requires permission <strong>VIEW_PORTFOLIO</strong>.
+
+        NOTE: This information should also be available from initial project
+        lookup, as a string 'dependencies' with JSON in it.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + API_PROJECT_DEPENDENCIES % (project_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get component graph info: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get component graph info", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
+    def get_project_components_list(
+            host, key,
+            project_id,
+            only_outdated=False,
+            only_direct=False,
+            verify=True
+    ):
+        """
+        Get a list of components that comprise the specified project.
+
+        Optionally constrain to only direct dependencies, and/or only those
+        known to be outdated.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + API_PROJECT_COMPONENTS % (project_id)
+
+        urlsep = "?"
+        if isinstance(only_outdated, bool):
+            url += "{}onlyOutdated={}".format(urlsep, str(only_outdated).lower())
+            urlsep = "&"
+
+        if isinstance(only_direct, bool):
+            url += "{}onlyDirect={}".format(urlsep, str(only_direct).lower())
+            #urlsep = "&"
+
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+
+        r = Auditor.get_paginated(url, headers=headers, verify=verify)
+        if r is not None and type(r) is requests.Response:
+            if r.status_code != 200:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print(f"Cannot get list of components in project: {r.status_code} {r.reason}")
+                # TODO? raise AuditorRESTAPIException("Cannot get list of components in project", r)
+                return {}
+            return json.loads(r.text)
+
+        # None or a type parsed from JSON
+        return r
+
+    @staticmethod
+    def get_project_properties_list(host, key, project_id, verify=True):
+        """
+        Look up a list of project properties by its UUID.
+        """
+
+        assert (host is not None and host != "")
+        assert (key is not None and key != "")
+        assert (project_id is not None and project_id != "")
+
+        url = host + (API_PROJECT_PROPERTIES % project_id)
+        headers = {
+            "content-type": "application/json",
+            "X-API-Key": key
+        }
+        r = requests.get(url, headers=headers, verify=verify)
+        if r.status_code != 200:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project properties: {r.status_code} {r.reason}")
+            # TODO? raise AuditorRESTAPIException("Cannot get project properties", r)
+            return {}
+        return json.loads(r.text)
+
+    @staticmethod
     def get_project_list(
             host, key,
             project_name=None,
@@ -758,11 +1652,14 @@ class Auditor:
             exclude_children=False,
             verify=True
     ):
-        """ Return a list of dictionaries with basic information about
+        """
+        Return a list of dictionaries with basic information about
         all known projects (optionally constrained to one `project_name`),
         or raise exceptions upon errors.
+
         Further options are to exclude_inactive and/or exclude_children.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is None or project_name != "")
@@ -774,7 +1671,7 @@ class Auditor:
             urlsep = "&"
 
         if isinstance(exclude_inactive, bool):
-            url += "{}excludeInactive={}".format(urlsep, exclude_inactive)
+            url += "{}excludeInactive={}".format(urlsep, str(exclude_inactive).lower())
             urlsep = "&"
 
         # FIXME: As of DT 4.9.0 it seems the `onlyRoot=bool` handling is
@@ -785,21 +1682,26 @@ class Auditor:
         #  cache it for each "host", so we would only invert the boolean
         #  for some range of server versions...
         if isinstance(exclude_children, bool):
-            url += "{}onlyRoot={}".format(urlsep, not exclude_children)
+            url += "{}onlyRoot={}".format(urlsep, str(not exclude_children).lower())
             #urlsep = "&"
 
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
         }
-        r = requests.get(url, headers=headers, verify=verify)
-        if r.status_code != 200:
-            raise AuditorRESTAPIException("Cannot get project list", r)
-        return json.loads(r.text)
+        r = Auditor.get_paginated(url, headers=headers, verify=verify)
+        if r is not None and type(r) is requests.Response:
+            if r.status_code != 200:
+                raise AuditorRESTAPIException("Cannot get project list", r)
+            return json.loads(r.text)
+
+        # None or a type parsed from JSON
+        return r
 
     @staticmethod
     def get_project_without_version_id(host, key, project_name, version, verify=True):
-        """ Look up a particular project instance by name and version,
+        """
+        Look up a particular project instance by name and version,
         querying for a list of all projects and filtering that.
 
         Returns project UUID or "" upon REST API request HTTP
@@ -809,6 +1711,7 @@ class Auditor:
         Please see whether the get_project_with_version_id() method
         works for you instead (should be less expensive computationally).
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is not None and project_name != "")
@@ -829,12 +1732,14 @@ class Auditor:
 
     @staticmethod
     def get_project_with_version_id(host, key, project_name, version, verify=True):
-        """ Look up a particular project instance by name and version,
+        """
+        Look up a particular project instance by name and version,
         using a dedicated REST API call for that purpose.
 
         Returns project UUID or "" empty string upon REST API request
         HTTP error states (may raise exceptions on other types of errors).
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (project_name is not None and project_name != "")
@@ -859,6 +1764,7 @@ class Auditor:
     @staticmethod
     def read_bom_file(filename):
         """ Read original XML or JSON Bom file and re-encode it to DT server's liking. """
+
         assert (filename is not None and filename != "")
 
         if Auditor.DEBUG_VERBOSITY > 2:
@@ -892,8 +1798,18 @@ class Auditor:
         project_name, version, filename, auto_create,
         project_uuid=None,
         parent_project=None, parent_version=None, parent_uuid=None,
-        wait=False, verify=True
+        wait=True, verify=True
     ):
+        """
+        Read original XML or JSON Bom file, re-encode it to DT server's liking,
+        and upload into specified project instance (name+version), creating one
+        if needed and requested (otherwise, you need to have created it earlier,
+        perhaps by cloning an older version - for that, see clone_update_project()).
+
+        Returns the event token (callers can poll for it, if they chose to not
+        "wait" for completion via method arguments).
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (
@@ -938,6 +1854,22 @@ class Auditor:
             "content-type": "application/json",
             "X-API-Key": key
         }
+
+        old_project_version_uuid = project_uuid
+        old_project_version_info = None
+        old_lastBOMImport = None
+        try:
+            if old_project_version_uuid is None and project_name is not None and version is not None:
+                old_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+            if old_project_version_uuid is not None:
+                old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
+            if old_project_version_info is not None:
+                old_lastBOMImport = int(old_project_version_info["lastBomImport"])
+        except Exception as ex:
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Cannot get project '{old_project_version_uuid}' (for '{project_name}' '{version}') info details before SBOM upload: {str(ex)}")
+            pass
+
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers, verify=verify)
         if r.status_code != 200:
             raise AuditorRESTAPIException(f"Cannot upload {filename}", r)
@@ -945,6 +1877,34 @@ class Auditor:
         bom_token = json.loads(r.text).get('token')
         if bom_token and wait:
             Auditor.poll_bom_token_being_processed(host, key, bom_token, wait=wait, verify=verify)
+
+        if wait:
+            new_project_version_uuid = old_project_version_uuid
+            new_project_version_info = None
+            new_lastBOMImport = None
+            try:
+                if new_project_version_uuid is None and project_name is not None and version is not None:
+                    # FIXME: ` and auto_create is True` ?
+                    new_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+                if new_project_version_uuid is not None:
+                    new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_version_uuid, True, verify)
+                if new_project_version_info is not None:
+                    # Expecting integer value of Unix epoch in milliseconds, e.g.
+                    #  ...,"lastBomImport":1724506650367,...
+                    new_lastBOMImport = int(new_project_version_info["lastBomImport"])
+            except Exception as ex:
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print(f"Cannot get project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details after SBOM upload: {str(ex)}")
+                pass
+
+            if new_lastBOMImport is None or new_lastBOMImport < 1:
+                raise AuditorException(f"Cannot upload {filename}: project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details report a bogus lastBomImport value: {str(new_lastBOMImport)}")
+
+            if old_lastBOMImport is not None and new_lastBOMImport == old_lastBOMImport:
+                raise AuditorException(f"Cannot upload {filename}: project '{new_project_version_uuid}' (for '{project_name}' '{version}') info details report same lastBomImport value as before import: {str(new_lastBOMImport)}")
+
+            if Auditor.DEBUG_VERBOSITY > 0:
+                print(f"Uploaded BOM '{filename}' into project '{new_project_version_uuid}' (for '{project_name}' '{version}'), it reports lastBomImport: {str(new_lastBOMImport)} (old one was {str(old_lastBOMImport)}) and token '{bom_token}'")
 
         return bom_token
 
@@ -955,8 +1915,22 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, verify=True, safeSleep=3
+            wait=True, verify=True, safeSleep=3
     ):
+        """
+        Clone an existing specified project instance (name+version) chosen by
+        its UUID, optionally inheriting existing components, analysis verdicts,
+        etc.
+
+        Can rename the project into a "new_name" if required (e.g. for
+        feature branches), and assign the "new_version" to the clone.
+
+        See also set_project_active() to perhaps deactivate the obsolete
+        revision on the DT server.
+
+        Returns UUID of the new project instance upon success.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_version_uuid is not None and old_project_version_uuid != "")
@@ -964,6 +1938,8 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Cloning project+version entity {old_project_version_uuid} to new version {new_version}...")
+
+        old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
 
         # Note that DT does not constrain the ability to assign arbitrary
         # values (which match the schema) to project name and version -
@@ -1045,7 +2021,33 @@ class Auditor:
                 pass
 
         if new_project_uuid is not None and len(new_project_uuid) > 0 and wait:
-            Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+            # Before DT 4.11, project-cloning is not atomic and
+            # the new instance's component count grows over time
+            # until it hits the original numbers. Only after that
+            # should SBOM upload happen, for example.
+            new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+            try:
+                old_count = old_project_version_info["metrics"]["components"]
+                if old_count > 0:
+                    try:
+                        new_count = new_project_version_info["metrics"]["components"]
+                    except Exception as exDict:
+                        new_count = -1
+
+                    while new_count < old_count:
+                        time.sleep(5)
+                        Auditor.request_project_metrics_refresh(host, key, new_project_uuid, wait=wait, verify=verify)
+                        new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_uuid, wait=wait, verify=verify)
+                        try:
+                            new_count = new_project_version_info["metrics"]["components"]
+                        except Exception as exDict:
+                            new_count = -1
+            except Exception as ex:
+                # Could not pass the dict?
+                if Auditor.DEBUG_VERBOSITY > 2:
+                    print(f"Could not poll and wait for new project to have same component count as the old instance: %s" % (str(ex)))
+            if Auditor.DEBUG_VERBOSITY > 2:
+                print(f"The cloned project+version entity {new_project_uuid} has at least as many components ({new_count}) as the original entity {old_project_version_uuid} ({old_count})")
 
         if new_name is not None and len(new_name) > 0 and (old_project_obj is None or old_project_obj.get("name") != new_name):
             if new_project_uuid is None:
@@ -1072,8 +2074,14 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
-            wait=False, verify=True, safeSleep=3
+            wait=True, verify=True, safeSleep=3
     ):
+        """
+        This method determines the UUID of an existing project instance
+        by its name and version, and calls clone_project_by_uuid().
+        See that method for detailed description.
+        """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert (old_project_name is not None and old_project_name != "")
@@ -1139,10 +2147,13 @@ class Auditor:
             wait=True, verify=True, safeSleep=3
     ):
         """
-        Clones an existing project and uploads a new SBOM document into it, in one swift operation.
+        Clones an existing project and uploads a new SBOM document into it,
+        in one swift operation.
 
-        TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get fallback name and/or version.
+        TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get
+        fallback name and/or version.
         """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
         assert ((old_project_version_uuid is not None and old_project_version_uuid != "") or
@@ -1258,6 +2269,8 @@ class Auditor:
 
     @staticmethod
     def get_dependencytrack_version(host, key, verify=True):
+        """ Get version information of the Dependency-Track server instance itself. """
+
         assert (host is not None and host != "")
         assert (key is not None and key != "")
 
@@ -1281,3 +2294,32 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 2:
             print(response_dict)
         return response_dict
+
+    @staticmethod
+    def close_request_session(catchExceptions=True):
+        """
+        To err on the safe side (e.g. avoid "too many open files") the
+        consumer code may want to close the HTTP client sessions.
+
+        Note we may not want to do this after each and every request
+        (e.g. inside the methods above), since they might benefit
+        under the hood from connection pooling or when the server
+        supports multiple queries per TCP session.
+
+        For more details see e.g.
+        https://stackoverflow.com/questions/10115126/python-requests-close-http-connection
+
+        This method allows the consumer code to not bother about the
+        classes needed for HTTP client implementation in DTrackAuditor.
+
+        The catchExceptions parameter tells this method to try/except
+        and so not propagate any errors to consumer (making this a
+        safer but only best-effort activity).
+        """
+        if catchExceptions:
+            try:
+                requests.session().close()
+            except Exception as ignored:
+                pass
+        else:
+            requests.session().close()
