@@ -8,7 +8,6 @@ import io
 import os
 import sys
 from shutil import rmtree
-import __init__
 
 from setuptools import find_packages, setup, Command
 
