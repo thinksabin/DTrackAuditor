@@ -2111,7 +2111,7 @@ class Auditor:
 
         old_project_version_uuid =\
             Auditor.get_project_with_version_id(host, key, old_project_name, old_project_version, verify)
-        assert (old_project_version_uuid is not None and old_project_version_uuid != "")
+        assert (old_project_version_uuid is not None and len(old_project_version_uuid) > 0)
         return Auditor.clone_project_by_uuid(
             host, key, old_project_version_uuid,
             new_version, new_name, includeALL,
@@ -2188,7 +2188,7 @@ class Auditor:
             old_project_version_uuid = \
                 Auditor.get_project_with_version_id(host, key, old_project_name, old_project_version, verify)
 
-        assert (old_project_version_uuid is not None and old_project_version_uuid != "")
+        assert (old_project_version_uuid is not None and len(old_project_version_uuid) > 0)
         old_project_obj = Auditor.poll_project_uuid(
             host, key, old_project_version_uuid, wait=wait, verify=verify)
 
