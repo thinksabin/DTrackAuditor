@@ -1870,17 +1870,16 @@ class Auditor:
         }
 
         old_project_version_uuid = project_uuid
-        if old_project_version_uuid == "":
-            # Rationale commented below
-            old_project_version_uuid = None
         old_project_version_info = None
         old_lastBOMImport = None
         try:
-            if old_project_version_uuid is None and project_name is not None and version is not None:
+            if ((old_project_version_uuid is None or len(old_project_version_uuid) < 1)
+                    and project_name is not None and version is not None):
                 old_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
-            if old_project_version_uuid == "":
+            if len(old_project_version_uuid) < 1:
                 # HTTP error reported when retrieving, but
-                # connection etc. did not fail so not None
+                # connection etc. did not fail so not None.
+                # This re-assignment simplifies checks below.
                 old_project_version_uuid = None
             if old_project_version_uuid is not None:
                 old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
@@ -1907,6 +1906,9 @@ class Auditor:
                 if new_project_version_uuid is None and project_name is not None and version is not None:
                     # FIXME: ` and auto_create is True` ?
                     new_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+                if len(new_project_version_uuid) < 1:
+                    # See comments in the block above.
+                    new_project_version_uuid = None
                 if new_project_version_uuid is not None:
                     new_project_version_info = Auditor.poll_project_uuid(host, key, new_project_version_uuid, True, verify)
                 if new_project_version_info is not None:
