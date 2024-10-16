@@ -1870,18 +1870,25 @@ class Auditor:
         }
 
         old_project_version_uuid = project_uuid
+        if old_project_version_uuid == "":
+            # Rationale commented below
+            old_project_version_uuid = None
         old_project_version_info = None
         old_lastBOMImport = None
         try:
             if old_project_version_uuid is None and project_name is not None and version is not None:
                 old_project_version_uuid = Auditor.get_project_with_version_id(host, key, project_name, version, verify)
+            if old_project_version_uuid == "":
+                # HTTP error reported when retrieving, but
+                # connection etc. did not fail so not None
+                old_project_version_uuid = None
             if old_project_version_uuid is not None:
                 old_project_version_info = Auditor.poll_project_uuid(host, key, old_project_version_uuid, True, verify)
             if old_project_version_info is not None:
                 old_lastBOMImport = int(old_project_version_info["lastBomImport"])
         except Exception as ex:
             if Auditor.DEBUG_VERBOSITY > 0:
-                print(f"Cannot get project '{old_project_version_uuid}' (for '{project_name}' '{version}') info details before SBOM upload: {str(ex)}")
+                print(f"Cannot get project '{str(old_project_version_uuid)}' (for '{project_name}' '{version}') info details before SBOM upload: {str(ex)}")
             pass
 
         r = requests.put(host + API_BOM_UPLOAD, data=json.dumps(payload), headers=headers, verify=verify)
