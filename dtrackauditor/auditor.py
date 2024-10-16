@@ -1704,12 +1704,18 @@ class Auditor:
         Look up a particular project instance by name and version,
         querying for a list of all projects and filtering that.
 
-        Returns project UUID or "" upon REST API request HTTP
-        error states (may raise exceptions on other types of errors)
-        or None if nothing was found (without errors).
-
-        Please see whether the get_project_with_version_id() method
+        NOTE: Please see whether the get_project_with_version_id() method
         works for you instead (should be less expensive computationally).
+
+        Returns:
+
+        * a string with project UUID reported by the REST API server
+          if the HTTP request was successful and contained an UUID
+          for this project name and version,
+        * None if the HTTP request was successful but did not contain
+          the UUID for this project name and version, or
+        * an "" empty string upon REST API request HTTP error states;
+        * methods used may raise exceptions on other types of errors.
         """
 
         assert (host is not None and host != "")
@@ -1736,8 +1742,15 @@ class Auditor:
         Look up a particular project instance by name and version,
         using a dedicated REST API call for that purpose.
 
-        Returns project UUID or "" empty string upon REST API request
-        HTTP error states (may raise exceptions on other types of errors).
+        Returns:
+
+        * a string with project UUID reported by the REST API server
+          if the HTTP request was successful and contained an UUID
+          for this project name and version,
+        * None if the HTTP request was successful but did not contain
+          the UUID for this project name and version, or
+        * an "" empty string upon REST API request HTTP error states;
+        * methods used may raise exceptions on other types of errors.
         """
 
         assert (host is not None and host != "")
@@ -1759,6 +1772,7 @@ class Auditor:
             # TODO? raise AuditorRESTAPIException("Cannot get project id", res)
             return ""
         response_dict = json.loads(res.text)
+        # May be None if key was not found for some reason (unsupported DT version?)
         return response_dict.get('uuid')
 
     @staticmethod
@@ -2269,7 +2283,14 @@ class Auditor:
 
     @staticmethod
     def get_dependencytrack_version(host, key, verify=True):
-        """ Get version information of the Dependency-Track server instance itself. """
+        """
+        Get version information of the Dependency-Track server instance itself.
+
+        Returns a dict with information reported by the REST API server
+        if the HTTP request was successful, or an "" empty string upon
+        REST API request HTTP error states (may raise exceptions on other
+        types of errors).
+        """
 
         assert (host is not None and host != "")
         assert (key is not None and key != "")
