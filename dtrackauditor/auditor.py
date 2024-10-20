@@ -711,6 +711,15 @@ class Auditor:
     around. It could not be squashed into the same class (at least not
     while using same method names). """
 
+    cached_dependencytrack_versions = {}
+    """
+    Dict to store each tried host's last returned details from the
+    get_dependencytrack_version() method. Maps string to further dict.
+
+    May be used to fence calls added in recent DT releases,
+    to avoid setting unsupported parameters to older REST API.
+    """
+
     @staticmethod
     def get_paginated(url, headers, verify=True):
         """ Get a response from paginated API calls.
@@ -2293,6 +2302,8 @@ class Auditor:
         response_dict = json.loads(res.text)
         if Auditor.DEBUG_VERBOSITY > 2:
             print(response_dict)
+
+        Auditor.cached_dependencytrack_versions[host] = response_dict
         return response_dict
 
     @staticmethod
