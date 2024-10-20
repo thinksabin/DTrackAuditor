@@ -597,6 +597,8 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
+            includePolicyViolations=None,
+            makeCloneLatest=None,
             wait=True, safeSleep=3
     ):
         retval = Auditor.clone_project_by_uuid(
@@ -611,6 +613,8 @@ class DTrackClient:
             includeProperties=includeProperties,
             includeServices=includeServices,
             includeTags=includeTags,
+            includePolicyViolations=includePolicyViolations,
+            makeCloneLatest=makeCloneLatest,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
         self.auto_close_request_session()
@@ -622,6 +626,8 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
+            includePolicyViolations=None,
+            makeCloneLatest=None,
             wait=True, safeSleep=3
     ):
         retval = Auditor.clone_project_by_name_version(
@@ -637,6 +643,8 @@ class DTrackClient:
             includeProperties=includeProperties,
             includeServices=includeServices,
             includeTags=includeTags,
+            includePolicyViolations=includePolicyViolations,
+            makeCloneLatest=makeCloneLatest,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
         self.auto_close_request_session()
@@ -663,6 +671,8 @@ class DTrackClient:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
+            includePolicyViolations=None,
+            makeCloneLatest=None,
             wait=True, safeSleep=3
     ):
         retval = Auditor.clone_update_project(
@@ -686,6 +696,8 @@ class DTrackClient:
             includeProperties=includeProperties,
             includeServices=includeServices,
             includeTags=includeTags,
+            includePolicyViolations=includePolicyViolations,
+            makeCloneLatest=makeCloneLatest,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
         self.auto_close_request_session()
@@ -1924,6 +1936,8 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
+            includePolicyViolations=None,
+            makeCloneLatest=None,
             wait=True, verify=True, safeSleep=3
     ):
         """
@@ -1936,6 +1950,10 @@ class Auditor:
 
         See also set_project_active() to perhaps deactivate the obsolete
         revision on the DT server.
+
+        Some REST API operations are available since Dependency Track server
+        4.11 and 4.12, so this method would ask for server version if not
+        known yet (is cached by that method).
 
         Returns UUID of the new project instance upon success.
         """
@@ -1956,6 +1974,8 @@ class Auditor:
         # of each instance is what matters. Same-ness of names allows it
         # to group separate versions of the project.
         # UPDATE: Fixed in DT-4.9.0, see https://github.com/DependencyTrack/dependency-track/issues/2958
+        # Server side definitive implementation (e.g. param names) is at
+        #   https://github.com/DependencyTrack/dependency-track/blob/master/src/main/java/org/dependencytrack/resources/v1/vo/CloneProjectRequest.java
         payload = {
             "project":              "%s" % old_project_version_uuid,
             "version":              "%s" % new_version,
@@ -1966,6 +1986,50 @@ class Auditor:
             "includeServices":      (includeServices if (includeServices is not None) else (includeALL is True)),
             "includeTags":          (includeTags if (includeTags is not None) else (includeALL is True))
         }
+
+        # Some options are only available since recent DT releases
+        # so to avoid surprises for those who still run slightly
+        # older servers, we only invoke these options when supported:
+        dt_ver_major = None
+        dt_ver_minor = None
+        dt_ver_patch = None
+        if host not in Auditor.cached_dependencytrack_versions:
+            Auditor.get_dependencytrack_version(host, key, verify)
+
+        if host in Auditor.cached_dependencytrack_versions:
+            try:
+                dt_version = Auditor.cached_dependencytrack_versions[host].get('version', None)
+                if Auditor.DEBUG_VERBOSITY > 3:
+                    print (f"Checking server version for certain options: parsing '{dt_version}'.")
+                if dt_version is not None:
+                    dt_version = dt_version.split(".")
+                    if len(dt_version) > 1:
+                        # Got at least major/minor; are they ints?
+                        dt_ver_major = int(dt_version[0])
+                        dt_ver_minor = int(dt_version[1])
+                        # May raise exception if not present?
+                        dt_ver_patch = int(dt_version[2])
+            except Exception as ignored:
+                pass
+
+        if dt_ver_major is not None and dt_ver_minor is not None:
+            if Auditor.DEBUG_VERBOSITY > 3:
+                print (f"Checking server version for certain options: got '{dt_ver_major}'.'{dt_ver_minor}'.'{dt_ver_patch}'.")
+
+            if dt_ver_major > 4 or \
+                    ( dt_ver_major == 4 and dt_ver_minor >= 11):
+                # since DT 4.11 https://github.com/DependencyTrack/dependency-track/issues/2875
+                payload["includePolicyViolations"] = (includePolicyViolations if (includePolicyViolations is not None) else (includeALL is True))
+
+            if dt_ver_major > 4 or \
+                    ( dt_ver_major == 4 and dt_ver_minor >= 12):
+                if makeCloneLatest is not None:
+                    # since DT 4.12 https://github.com/DependencyTrack/dependency-track/pull/4184
+                    payload["makeCloneLatest"] = makeCloneLatest
+        else:
+            if Auditor.DEBUG_VERBOSITY > 3:
+                print (f"Server version was not detected, not trying options for DependencyTrack server 4.11 or newer")
+
         headers = {
             "content-type": "application/json",
             "X-API-Key": key
@@ -2083,6 +2147,8 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
+            includePolicyViolations=None,
+            makeCloneLatest=None,
             wait=True, verify=True, safeSleep=3
     ):
         """
@@ -2106,6 +2172,8 @@ class Auditor:
             includeACL, includeAuditHistory,
             includeComponents, includeProperties,
             includeServices, includeTags,
+            includePolicyViolations,
+            makeCloneLatest,
             wait, verify, safeSleep)
 
     @staticmethod
@@ -2153,6 +2221,8 @@ class Auditor:
             includeACL=None, includeAuditHistory=None,
             includeComponents=None, includeProperties=None,
             includeServices=None, includeTags=None,
+            includePolicyViolations=None,
+            makeCloneLatest=None,
             wait=True, verify=True, safeSleep=3
     ):
         """
@@ -2212,6 +2282,8 @@ class Auditor:
                 includeACL, includeAuditHistory,
                 includeComponents, includeProperties,
                 includeServices, includeTags,
+                includePolicyViolations,
+                makeCloneLatest,
                 wait=(wait if wait is not None and wait is not False else 240),
                 verify=verify, safeSleep=safeSleep)
         except AuditorRESTAPIException as ex:
@@ -2236,6 +2308,8 @@ class Auditor:
                 includeACL, includeAuditHistory,
                 includeComponents, includeProperties,
                 includeServices, includeTags,
+                includePolicyViolations,
+                makeCloneLatest,
                 wait=(wait if wait is not None and wait is not False else 240),
                 verify=verify, safeSleep=safeSleep)
             headers = {
