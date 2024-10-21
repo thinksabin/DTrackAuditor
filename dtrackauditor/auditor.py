@@ -2236,13 +2236,20 @@ class Auditor:
         and clone off snapshots of older revisions to keep them "as is"),
         in one swift operation.
 
-        Returns UUID of the new cloned project, or raises exceptions upon
-        errors along the way.
+        If "uploadIntoClone==False", the "new_name" and "new_version"
+        would be applied to the original project (into which the new
+        BOM document revision would be imported). Take care about
+        assigning correct values to "activate_old"/"activate_new"
+        (they still refer to the pre-existing and newly-cloned project
+        instances).
 
         Note: the "include*" and "makeCloneLatest" arguments are passed
         into the REST API call to be processed by the Dependency-Track
         server. Setting "makeCloneLatest=True" may be logically at odds
         with setting "uploadIntoClone=False".
+
+        Returns UUID of the new cloned project, or raises exceptions upon
+        errors along the way.
 
         TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get
         fallback name and/or version.
@@ -2290,7 +2297,14 @@ class Auditor:
         # NOTE: Here we insist on at least some wait (True or seconds-count)
         # for completion of the call before proceeding; defaults to 4 min as
         # if a TCP timeout.
+        # Even if we clone a project in a way that the new clone would be
+        # just a snapshot of the old state (uploadIntoClone==False), we try
+        # to do it transactionally -- only mangle the original instance's
+        # version (and name) into new values after the clone has appeared.
+        mustPatchCloneVersion = False
         try:
+            # Even if uploadIntoClone==False, we first clone using the
+            # new name and version (to stake our claim in those values):
             new_project_uuid = Auditor.clone_project_by_uuid(
                 host, key, old_project_version_uuid,
                 new_version, new_name, includeALL,
@@ -2319,7 +2333,8 @@ class Auditor:
             # Use a somewhat random "version" - plant UUID there temporarily:
             new_project_uuid = Auditor.clone_project_by_uuid(
                 host, key, old_project_version_uuid,
-                old_project_version_uuid, new_name, includeALL,
+                old_project_version_uuid,   # fake temp version
+                new_name, includeALL,
                 includeACL, includeAuditHistory,
                 includeComponents, includeProperties,
                 includeServices, includeTags,
@@ -2327,23 +2342,86 @@ class Auditor:
                 makeCloneLatest,
                 wait=(wait if wait is not None and wait is not False else 240),
                 verify=verify, safeSleep=safeSleep)
-            headers = {
-                "content-type": "application/json",
-                "X-API-Key": key
-            }
-            r = requests.patch(
-                host + API_PROJECT + '/{}'.format(new_project_uuid),
-                data=json.dumps({"version": "%s" % new_version}),
-                headers=headers, verify=verify)
-            if r.status_code != 200:
-                raise AuditorRESTAPIException(f"Cannot patch {new_project_uuid} version", r)
-
-            if Auditor.DEBUG_VERBOSITY > 2:
-                print(f"Completed the workaround with intermediate version value")
+            mustPatchCloneVersion = True
 
         AuditorException.INSTANT_EXIT = fatalException
 
         assert (new_project_uuid is not None and new_project_uuid != "")
+
+        if mustPatchCloneVersion or not uploadIntoClone:
+            headers = {
+                "content-type": "application/json",
+                "X-API-Key": key
+            }
+
+            if uploadIntoClone:
+                # Assume just the mustPatchCloneVersion fix-up from above
+                # No changes to original project UUID instance here
+                r = requests.patch(
+                    host + API_PROJECT + '/{}'.format(new_project_uuid),
+                    data=json.dumps({"version": "%s" % new_version}),
+                    headers=headers, verify=verify)
+                if r.status_code != 200:
+                    raise AuditorRESTAPIException(f"Cannot patch {new_project_uuid} version", r)
+            else:
+                # Caller wants to change the original project instance
+                # (by UUID), while our shiny new clone assumes the old
+                # name+version which the original instance currently has:
+                # 1. Rename clone to "oldvalue+tmp"
+                # 2. Rename origin to final "newvalue"
+                # 3. Rename clone to final "oldvalue"
+
+                # NOTE: old name+version are ignored if an UUID
+                # is provided (or learned). For renaming here we
+                # use whatever we have on DT server in fact.
+                # New ones are what the caller requested (or we
+                # inherited from "old" project instance above).
+                old_project_name = old_project_obj.get("name")
+                old_project_version = old_project_obj.get("version")
+
+                if Auditor.DEBUG_VERBOSITY > 0:
+                    print(f"FLIP MANEUVER: Asked to assign " +
+                          f"old project name '{old_project_name}' " +
+                          f"+ version '{old_project_version}' to " +
+                          f"new UUID '{new_project_uuid}' of the " +
+                          f"clone (destined to be a mere snapshot), " +
+                          f"and the new project name '{new_name}' " +
+                          f"+ version '{new_version}' to original " +
+                          f"UUID '{old_project_version_uuid}' (into " +
+                          f"which we would upload new BOM iteration)")
+
+                # 1. Rename new clone to "oldvalue+tmp"
+                r = requests.patch(
+                    host + API_PROJECT + '/{}'.format(new_project_uuid),
+                    data=json.dumps({
+                        "name": "%s" % old_project_name,
+                        "version": "%s-tmp-%s" % (old_project_version, new_project_uuid),
+                    }),
+                    headers=headers, verify=verify)
+                if r.status_code != 200:
+                    raise AuditorRESTAPIException(f"Cannot patch new {new_project_uuid} name+version", r)
+
+                # 2. Rename old origin to "newvalue"
+                r = requests.patch(
+                    host + API_PROJECT + '/{}'.format(old_project_version_uuid),
+                    data=json.dumps({
+                        "name": "%s" % new_name,
+                        "version": "%s" % new_version,
+                    }),
+                    headers=headers, verify=verify)
+                if r.status_code != 200:
+                    raise AuditorRESTAPIException(f"Cannot patch old {old_project_version_uuid} name+version", r)
+
+                # 3. Rename new clone to "oldvalue" finally
+                r = requests.patch(
+                    host + API_PROJECT + '/{}'.format(new_project_uuid),
+                    data=json.dumps({"version": "%s" % old_project_version}),
+                    headers=headers, verify=verify)
+                if r.status_code != 200:
+                    raise AuditorRESTAPIException(f"Cannot patch new {new_project_uuid} name+version", r)
+
+            if mustPatchCloneVersion and Auditor.DEBUG_VERBOSITY > 2:
+                print(f"Completed the workaround with intermediate version value")
 
         bom_token = Auditor.read_upload_bom(
             host, key, project_name=None, version=None,
