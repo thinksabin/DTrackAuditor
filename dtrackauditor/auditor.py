@@ -673,6 +673,7 @@ class DTrackClient:
             includeServices=None, includeTags=None,
             includePolicyViolations=None,
             makeCloneLatest=None,
+            uploadIntoClone=True,
             wait=True, safeSleep=3
     ):
         retval = Auditor.clone_update_project(
@@ -698,6 +699,7 @@ class DTrackClient:
             includeTags=includeTags,
             includePolicyViolations=includePolicyViolations,
             makeCloneLatest=makeCloneLatest,
+            uploadIntoClone=uploadIntoClone,
             safeSleep=safeSleep,
             wait=wait, verify=self.ssl_verify)
         self.auto_close_request_session()
@@ -2223,11 +2225,24 @@ class Auditor:
             includeServices=None, includeTags=None,
             includePolicyViolations=None,
             makeCloneLatest=None,
+            uploadIntoClone=True,
             wait=True, verify=True, safeSleep=3
     ):
         """
-        Clones an existing project and uploads a new SBOM document into it,
+        Clones an existing project and uploads a new SBOM document into
+        one of them (depending on value of "uploadIntoClone", by default
+        updating the clone -- but it makes sense for some workflows to
+        keep the same project UUID as the current tip of code evolution,
+        and clone off snapshots of older revisions to keep them "as is"),
         in one swift operation.
+
+        Returns UUID of the new cloned project, or raises exceptions upon
+        errors along the way.
+
+        Note: the "include*" and "makeCloneLatest" arguments are passed
+        into the REST API call to be processed by the Dependency-Track
+        server. Setting "makeCloneLatest=True" may be logically at odds
+        with setting "uploadIntoClone=False".
 
         TODO: Parse Bom.Metadata.Component if present (XML, JSON) to get
         fallback name and/or version.
@@ -2332,7 +2347,8 @@ class Auditor:
 
         bom_token = Auditor.read_upload_bom(
             host, key, project_name=None, version=None,
-            filename=filename, auto_create=False, project_uuid=new_project_uuid,
+            filename=filename, auto_create=False,
+            project_uuid=(new_project_uuid if uploadIntoClone else old_project_version_uuid),
             parent_project=parent_project, parent_version=parent_version, parent_uuid=parent_uuid,
             wait=wait, verify=verify)
 
