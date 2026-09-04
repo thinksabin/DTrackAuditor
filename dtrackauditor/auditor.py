@@ -893,8 +893,10 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for bom to be processed on dt server ...")
+            sys.stdout.flush()
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"Processing bom token uuid is {bom_token}")
+            sys.stdout.flush()
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
         headers = {
             "content-type": "application/json",
@@ -903,6 +905,8 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+            sys.stdout.flush()
+
         # NOTE: poll_forever!=False, ever!
         if wait:
             result = polling.poll(
@@ -944,8 +948,10 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for an async event to be processed on dt server ...")
+            sys.stdout.flush()
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"Processing event token uuid is {event_token}")
+            sys.stdout.flush()
         url = host + API_EVENT_TOKEN+'/{}'.format(event_token)
         headers = {
             "content-type": "application/json",
@@ -954,6 +960,8 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+            sys.stdout.flush()
+
         # NOTE: poll_forever!=False, ever!
         if wait:
             result = polling.poll(
@@ -980,6 +988,7 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Waiting for project uuid {project_uuid} to be reported by dt server ...")
+            sys.stdout.flush()
         url = host + API_PROJECT + '/{}'.format(project_uuid)
         headers = {
             "content-type": "application/json",
@@ -988,6 +997,8 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+            sys.stdout.flush()
+
         # NOTE: poll_forever!=False, ever!
         if wait:
             result = polling.poll(
