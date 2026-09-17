@@ -893,8 +893,10 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for bom to be processed on dt server ...")
+            sys.stdout.flush()
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"Processing bom token uuid is {bom_token}")
+            sys.stdout.flush()
         url = host + API_BOM_TOKEN+'/{}'.format(bom_token)
         headers = {
             "content-type": "application/json",
@@ -903,6 +905,8 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+            sys.stdout.flush()
+
         # NOTE: poll_forever!=False, ever!
         if wait:
             result = polling.poll(
@@ -944,8 +948,10 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print("Waiting for an async event to be processed on dt server ...")
+            sys.stdout.flush()
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"Processing event token uuid is {event_token}")
+            sys.stdout.flush()
         url = host + API_EVENT_TOKEN+'/{}'.format(event_token)
         headers = {
             "content-type": "application/json",
@@ -954,6 +960,8 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+            sys.stdout.flush()
+
         # NOTE: poll_forever!=False, ever!
         if wait:
             result = polling.poll(
@@ -980,6 +988,7 @@ class Auditor:
 
         if Auditor.DEBUG_VERBOSITY > 2:
             print(f"Waiting for project uuid {project_uuid} to be reported by dt server ...")
+            sys.stdout.flush()
         url = host + API_PROJECT + '/{}'.format(project_uuid)
         headers = {
             "content-type": "application/json",
@@ -988,6 +997,8 @@ class Auditor:
         if Auditor.DEBUG_VERBOSITY > 3:
             print(f"poll_forever={(wait if isinstance(wait, bool) else False)}")
             print(f"timeout={(wait if (isinstance(wait, (int, float)) and not isinstance(wait, bool)) else None)}")
+            sys.stdout.flush()
+
         # NOTE: poll_forever!=False, ever!
         if wait:
             result = polling.poll(
@@ -2105,14 +2116,46 @@ class Auditor:
                     if Auditor.DEBUG_VERBOSITY > 2:
                         print(f"Failed to query the old project details")
                 else:
-                    new_project_uuid = Auditor.get_project_with_version_id(
-                        host, key, old_project_obj.get("name"), new_version, verify=verify)
-                    if new_project_uuid is not None and len(new_project_uuid) > 0:
-                        if Auditor.DEBUG_VERBOSITY > 2:
-                            print("Query identified the new clone of %s ('%s' version '%s' => '%s') as %s" % (
-                                old_project_version_uuid,
-                                old_project_obj.get("name"), old_project_obj.get("version"),
-                                new_version, new_project_uuid))
+                    new_project_uuid = None
+                    time_start = time.time()
+                    wait_reported = False
+                    while new_project_uuid is None or len(new_project_uuid) == 0:
+                        new_project_uuid = Auditor.get_project_with_version_id(
+                            host, key, old_project_obj.get("name"), new_version, verify=verify)
+                        if new_project_uuid is not None and len(new_project_uuid) > 0:
+                            if Auditor.DEBUG_VERBOSITY > 2:
+                                print("Query identified the new clone of %s ('%s' version '%s' => '%s') as %s" % (
+                                    old_project_version_uuid,
+                                    old_project_obj.get("name"), old_project_obj.get("version"),
+                                    new_version, new_project_uuid))
+                            break
+                        # else: no new project UUID yet...
+                        if wait is None or type(wait) is bool and not wait:
+                            if Auditor.DEBUG_VERBOSITY > 2:
+                                print("Could not identify the new clone of %s ('%s' version '%s' => '%s') after initial delay, and further waiting is disabled" % (
+                                    old_project_version_uuid,
+                                    old_project_obj.get("name"), old_project_obj.get("version"),
+                                    new_version))
+                            break
+                        if type(wait) is int and wait > 0 and time.time() - time_start > wait:
+                            if Auditor.DEBUG_VERBOSITY > 2:
+                                print("Could not identify the new clone of %s ('%s' version '%s' => '%s') after initial delay, and further waiting expired after %d sec" % (
+                                    old_project_version_uuid,
+                                    old_project_obj.get("name"), old_project_obj.get("version"),
+                                    new_version, wait))
+                            break
+                        # else poll indefinitely as for wait==True
+                        if not wait_reported:
+                            if Auditor.DEBUG_VERBOSITY > 2:
+                                print("Would wait%s after cloning project %s" % (
+                                    (" for %d sec" % wait) if type(wait) is int and wait > 0 else
+                                    (" indefinitely" if type(wait) is bool and wait else ""),
+                                    old_project_version_uuid
+                                ))
+                            wait_reported = True
+                        if Auditor.DEBUG_VERBOSITY > 3:
+                            print("Sleeping 5 sec after cloning project %s ..." % old_project_version_uuid)
+                        time.sleep(5)
             except Exception as ex:
                 if Auditor.DEBUG_VERBOSITY > 2:
                     print(f"Failed to query known projects to identify the new clone: {ex}")
